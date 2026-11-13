@@ -1,0 +1,69 @@
+# Docker Compose configuration for NetMinder
+#
+# Quick Start:
+#   1. Build and start: docker-compose up -d
+#   2. View logs: docker-compose logs -f
+#   3. Stop: docker-compose down
+#   4. Stop and remove data: docker-compose down -v
+#
+# Before running, set JWT_SECRET and CONFIG_ENCRYPTION_KEY in your environment or .env file
+
+services:
+  app:
+    # Build configuration
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    # Container name
+    container_name: netminder
+
+    # Port mapping - host:container
+    ports:
+      - "8080:8080"
+
+    # Environment variables
+    # IMPORTANT: Change JWT_SECRET to a secure random string in production
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - DATABASE_PATH=/app/data/netminder.sqlite3
+      # Set JWT_SECRET via environment variable or docker-compose override
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET to a unique random secret}
+      - CONFIG_ENCRYPTION_KEY=${CONFIG_ENCRYPTION_KEY:?Set CONFIG_ENCRYPTION_KEY to a unique random secret}
+
+    # Volume mount for SQLite database persistence
+    # This ensures your data persists across container restarts
+    volumes:
+      - netminder-data:/app/data
+
+    # Restart policy - always restart unless explicitly stopped
+    restart: unless-stopped
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+    # Resource limits (optional - uncomment to enable)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1.0'
+    #       memory: 512M
+    #     reservations:
+    #       cpus: '0.5'
+    #       memory: 256M
+
+# Named volumes for data persistence
+volumes:
+  netminder-data:
+    driver: local
+    # Optional: specify a custom location on the host
+    # driver_opts:
+    #   type: none
+    #   device: /path/on/host/data
+    #   o: bind

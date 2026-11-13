@@ -1,0 +1,56 @@
+{
+    "name": "netminder",
+    "private": true,
+    "workspaces": [
+        "core",
+        "client",
+        "api",
+        "dal"
+    ],
+    "type": "module",
+    "scripts": {
+        "clean": "rm -rf .dist && rm -rf ./client/css/dist.css",
+        "lint": "tsgo --noEmit && tsgo --noEmit --project client/tsconfig.json && tsgo --noEmit --project api/tsconfig.json && tsgo --noEmit --project core/tsconfig.json && tsgo --noEmit --project dal/tsconfig.json && eslint . --config eslint.config.js --max-warnings=0 --fix",
+        "dev": "bun run clean && concurrently --prefix \"[{name}]\" --names \"TAILWIND,SERVER\" --prefix-colors \"magenta,yellow\" \"bun run tailwind --watch\" \"sleep 1; bun --hot ./server.ts\"",
+        "build": "bun run clean && bun run tailwind && bun build --production --outdir=.dist --target=bun ./server.ts",
+        "build:dev": "bun run clean && bun run tailwind && bun build --outdir=.dist --target=bun ./server.ts",
+        "tailwind": "tailwindcss -i ./client/css/app.css -o ./client/css/dist.css",
+        "compile": "bun run clean && bun run tailwind && bun build --production --compile --outfile=.dist/netminder --target=bun ./server.ts",
+        "compile:applesilicon": "bun run clean && bun run tailwind && bun build --production --compile --outfile=.dist/netminder-macos-arm64 --target=bun-darwin-arm64 ./server.ts",
+        "compile:linux": "bun run clean && bun tailwind && bun build --production --compile --outfile=.dist/netminder-linux-x64 --target=bun-linux-x64-baseline ./server.ts",
+        "docker:build": "docker buildx build --platform linux/amd64,linux/arm64 -t sirmalloc1/netminder:latest . --push"
+    },
+    "devDependencies": {
+        "@eslint/js": "^8.57.1",
+        "@stylistic/eslint-plugin": "^1.8.1",
+        "@tailwindcss/cli": "^4.0.0-alpha.17",
+        "@types/bcryptjs": "^3.0.0",
+        "@types/jsonwebtoken": "^9.0.10",
+        "@types/node": "^20.19.21",
+        "@typescript/native-preview": "^7.0.0-dev.20251021.1",
+        "bun-types": "^1.4.4",
+        "concurrently": "^9.2.1",
+        "eslint": "^8.57.1",
+        "eslint-import-resolver-node": "^0.3.9",
+        "eslint-import-resolver-typescript": "^3.10.1",
+        "eslint-plugin-import": "^2.32.0",
+        "eslint-plugin-import-newlines": "^1.4.0",
+        "eslint-plugin-react": "^7.37.5",
+        "eslint-plugin-react-hooks": "^4.6.2",
+        "globals": "^13.24.0",
+        "typescript": "^5.9.3",
+        "typescript-eslint": "^8.46.0"
+    },
+    "dependencies": {
+        "@netminder/core": "workspace:*",
+        "@netminder/client": "workspace:*",
+        "@netminder/api": "workspace:*",
+        "@netminder/dal": "workspace:*",
+        "@elysiajs/cors": "^1.4.0",
+        "@elysiajs/static": "^1.4.0",
+        "bcryptjs": "^3.0.2",
+        "dotenv-cli": "^10.0.0",
+        "elysia": "^1.4.11",
+        "jsonwebtoken": "^9.0.2"
+    }
+}

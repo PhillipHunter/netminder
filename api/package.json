@@ -1,0 +1,15 @@
+{
+    "name": "@netminder/api",
+    "private": true,
+    "type": "module",
+    "exports": "./index.ts",
+    "types": "./index.ts",
+    "dependencies": {
+        "@netminder/core": "workspace:*",
+        "@netminder/dal": "workspace:*",
+        "bcryptjs": "^3.0.2",
+        "@elysiajs/openapi": "^1.1.4",
+        "elysia": "^1.4.11",
+        "jsonwebtoken": "^9.0.2"
+    }
+}
