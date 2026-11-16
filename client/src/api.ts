@@ -2,6 +2,7 @@ import { edenTreaty } from '@elysiajs/eden';
 
 import type {
     App,
+    account,
     auth,
     checkins,
     health,
@@ -37,6 +38,9 @@ export type StationStats = stations.StationStatsSchema;
 export type StationLookupResponse = stations.LookupResponse['lookup'];
 export type StationFieldSource = stations.StationLookupFieldSchema['source'];
 export type QrzSettingsStatus = settings.QRZStatusSchema;
+export type QrzCredentialMode = settings.QRZModeSchema;
+export type AccountQrzStatus = account.AccountQrzStatusSchema;
+export type AccountQrzTestResult = account.TestResponse;
 
 interface EdenErrorPayload {
     error: {
@@ -302,6 +306,29 @@ export async function updateQrzSettings(payload: settings.UpdateBody): Promise<Q
 
 export async function deleteQrzSettings(): Promise<void> {
     await unwrapResponse(backend.api.settings.qrz.delete(), 'Failed to remove QRZ credentials');
+}
+
+export async function updateQrzMode(mode: QrzCredentialMode): Promise<QrzCredentialMode> {
+    const data = await unwrapResponse<settings.UpdateModeResponse>(backend.api.settings.qrz.mode.put({ mode }), 'Failed to update QRZ credential mode');
+    return data.mode;
+}
+
+export async function fetchAccountQrz(): Promise<AccountQrzStatus> {
+    const data = await unwrapResponse<account.GetResponse>(backend.api.account.qrz.get(), 'Failed to load your QRZ settings');
+    return data.settings;
+}
+
+export async function updateAccountQrz(payload: account.UpdateBody): Promise<AccountQrzStatus> {
+    const data = await unwrapResponse<account.UpdateResponse>(backend.api.account.qrz.put(payload), 'Failed to update your QRZ credentials');
+    return data.settings;
+}
+
+export async function testAccountQrz(): Promise<AccountQrzTestResult> {
+    return unwrapResponse<account.TestResponse>(backend.api.account.qrz.test.post(), 'Failed to test your QRZ credentials');
+}
+
+export async function deleteAccountQrz(): Promise<void> {
+    await unwrapResponse(backend.api.account.qrz.delete(), 'Failed to remove your QRZ credentials');
 }
 
 export async function deleteNet(id: number): Promise<void> {

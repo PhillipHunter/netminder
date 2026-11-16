@@ -24,6 +24,7 @@ import {
     createCheckin,
     endNet,
     endNetFormal,
+    fetchAccountQrz,
     fetchCheckins,
     fetchNet,
     isNotFoundError,
@@ -63,6 +64,7 @@ export function ActiveNet() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isUnavailable, setIsUnavailable] = useState(false);
+    const [qrzUnavailable, setQrzUnavailable] = useState(false);
 
     // History panel
     const [historyPanelOpen, setHistoryPanelOpen] = useState(false);
@@ -76,6 +78,17 @@ export function ActiveNet() {
 
     const [currentTime, setCurrentTime] = useState<Date>(() => new Date());
     const [showColon, setShowColon] = useState(true);
+
+    // Warn when per-user QRZ lookups are unavailable; a failed fetch simply shows no notice
+    useEffect(() => {
+        fetchAccountQrz()
+            .then((status) => {
+                setQrzUnavailable(status.mode === 'per_user' && !status.configured);
+            })
+            .catch((err: unknown) => {
+                console.error('Error fetching QRZ status:', err);
+            });
+    }, []);
 
     // Fetch net details
     useEffect(() => {
@@ -785,6 +798,19 @@ export function ActiveNet() {
                                 : net.is_owner
                                     ? 'This net has ended. Restart the net to log additional activity.'
                                     : 'This net has ended. Only the net creator can restart it.'}
+                        </p>
+                    )}
+                    {qrzUnavailable && (
+                        <p className='mb-3 text-sm text-amber-200/90'>
+                            QRZ lookup is off until you add your QRZ credentials in
+                            {' '}
+                            <Link
+                                to='/settings'
+                                className='font-medium text-indigo-300 underline hover:text-indigo-200'
+                            >
+                                Settings
+                            </Link>
+                            .
                         </p>
                     )}
                     <CallsignInput

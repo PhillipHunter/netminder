@@ -131,7 +131,7 @@ export const createHandler = async ({ params, body, user, set }: CreateContext):
 
     try {
         const normalizedMobility = body.mobility ? normalizeMobility(body.mobility) : undefined;
-        const result = await createCheckinWithMeta(netId, {
+        const result = await createCheckinWithMeta(netId, user.userId, {
             callsign: body.callsign,
             mobility: normalizedMobility,
             staying: body.staying,

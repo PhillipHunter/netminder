@@ -31,6 +31,7 @@ function fetchCheckinRecord(id: number, netId: number): CheckinRecord {
 
 export async function createCheckinWithMeta(
     netId: number,
+    userId: number | null,
     data: {
         callsign: string;
         mobility?: MobilityType;
@@ -49,7 +50,7 @@ export async function createCheckinWithMeta(
         const locationInput = data.location?.trim();
         const normalizedLocation = locationInput === '' ? null : locationInput ?? undefined;
 
-        const station = await upsertStationWithQRZ(normalizedCallsign, {
+        const station = await upsertStationWithQRZ(normalizedCallsign, userId, {
             preferred_name: preferredName,
             location: normalizedLocation
         });

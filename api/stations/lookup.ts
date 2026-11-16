@@ -6,6 +6,7 @@ import {
 
 import { getStationLookupDetails } from '@netminder/dal';
 
+import type { AuthUser } from '../auth/middleware';
 import {
     errorResponse,
     type ErrorResponse
@@ -41,11 +42,13 @@ export type LookupResponse = Static<typeof lookupContract.response[200]>;
 interface LookupContext {
     params: LookupParams;
     set: Context['set'];
+    user?: AuthUser | null;
 }
 
 export const lookupHandler = async ({
     params,
-    set
+    set,
+    user
 }: LookupContext): Promise<LookupResponse | ErrorResponse> => {
     const decoded = decodeCallsignParam(params.callsign);
     if (!decoded) {
@@ -60,7 +63,7 @@ export const lookupHandler = async ({
 
     try {
         const normalized = normalizeCallsignValue(decoded);
-        const lookup = await getStationLookupDetails(normalized);
+        const lookup = await getStationLookupDetails(normalized, user?.userId ?? null);
 
         return { lookup };
     } catch (error) {

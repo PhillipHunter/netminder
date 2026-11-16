@@ -19,6 +19,16 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`;
 
+export const USER_QRZ_CREDENTIALS_TABLE = `
+CREATE TABLE IF NOT EXISTS user_qrz_credentials (
+  user_id INTEGER PRIMARY KEY,
+  username TEXT NOT NULL,
+  password TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+)`;
+
 export const NETS_TABLE = `
 CREATE TABLE IF NOT EXISTS nets (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -88,6 +98,7 @@ ON nets(created_by)`;
 export const SCHEMA_STATEMENTS = [
     USERS_TABLE,
     SETTINGS_TABLE,
+    USER_QRZ_CREDENTIALS_TABLE,
     NETS_TABLE,
     STATIONS_TABLE,
     CHECKINS_TABLE,

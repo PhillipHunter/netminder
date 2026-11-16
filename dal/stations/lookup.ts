@@ -43,11 +43,11 @@ export interface StationLookupDetails {
     source: FieldSource;
 }
 
-export async function getStationLookupDetails(callsign: string): Promise<StationLookupDetails> {
+export async function getStationLookupDetails(callsign: string, userId: number | null): Promise<StationLookupDetails> {
     const normalizedCallsign = normalizeCallsign(callsign);
     const station = findStationByCallsign(normalizedCallsign);
 
-    const qrzEnabled = isQRZConfigured();
+    const qrzEnabled = isQRZConfigured(userId);
 
     const manualPreferred = station?.preferred_name?.trim() ?? null;
     const manualLocation = station?.location?.trim() ?? null;
@@ -76,7 +76,7 @@ export async function getStationLookupDetails(callsign: string): Promise<Station
     );
 
     if (shouldAttemptLookup && qrzEnabled) {
-        const lookupResult = await lookupCallsign(normalizedCallsign);
+        const lookupResult = await lookupCallsign(normalizedCallsign, userId);
         if (lookupResult) {
             fetchedNow = true;
             qrzDataRaw = JSON.stringify(lookupResult);

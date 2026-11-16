@@ -125,8 +125,8 @@ interface FetchQrzResult {
     qrz_last_fetched_at: string | null;
 }
 
-async function fetchAndCacheQRZ(callsign: string): Promise<FetchQrzResult> {
-    if (!isQRZConfigured()) {
+async function fetchAndCacheQRZ(callsign: string, userId: number | null): Promise<FetchQrzResult> {
+    if (!isQRZConfigured(userId)) {
         return {
             qrz_data: null,
             qrz_last_fetched_at: null
@@ -134,7 +134,7 @@ async function fetchAndCacheQRZ(callsign: string): Promise<FetchQrzResult> {
     }
 
     try {
-        const qrzResult = await lookupCallsign(callsign);
+        const qrzResult = await lookupCallsign(callsign, userId);
         if (!qrzResult) {
             return {
                 qrz_data: null,
@@ -157,6 +157,7 @@ async function fetchAndCacheQRZ(callsign: string): Promise<FetchQrzResult> {
 
 export async function upsertStationWithQRZ(
     callsign: string,
+    userId: number | null,
     options?: {
         preferred_name?: string | null;
         location?: string | null;
@@ -168,7 +169,7 @@ export async function upsertStationWithQRZ(
     const existing = findStationByCallsign(normalizedCallsign);
 
     const shouldAttemptFetch = !options?.skipQRZ
-        && isQRZConfigured()
+        && isQRZConfigured(userId)
         && (
             !existing
             || shouldRefreshQRZ(existing.qrz_last_fetched_at ?? null)
@@ -178,7 +179,7 @@ export async function upsertStationWithQRZ(
     let qrzLastFetchedAt = existing?.qrz_last_fetched_at ?? null;
 
     if (shouldAttemptFetch) {
-        const result = await fetchAndCacheQRZ(normalizedCallsign);
+        const result = await fetchAndCacheQRZ(normalizedCallsign, userId);
         qrzData = result.qrz_data;
         qrzLastFetchedAt = result.qrz_last_fetched_at;
     }
@@ -197,7 +198,7 @@ export type RenameStationResult =
     | { status: 'conflict'; conflictingCallsign: string }
     | { status: 'success'; station: Station };
 
-export async function renameStation(currentCallsign: string, nextCallsign: string): Promise<RenameStationResult> {
+export async function renameStation(currentCallsign: string, nextCallsign: string, userId: number | null): Promise<RenameStationResult> {
     const normalizedCurrent = normalizeCallsign(currentCallsign);
     const normalizedNext = normalizeCallsign(nextCallsign);
 
@@ -235,7 +236,7 @@ export async function renameStation(currentCallsign: string, nextCallsign: strin
             existingStation.id
         );
 
-        return upsertStationWithQRZ(normalizedNext);
+        return upsertStationWithQRZ(normalizedNext, userId);
     });
     return {
         status: 'success',
@@ -243,13 +244,13 @@ export async function renameStation(currentCallsign: string, nextCallsign: strin
     };
 }
 
-export async function refreshStationQRZ(callsign: string): Promise<Station | null> {
+export async function refreshStationQRZ(callsign: string, userId: number | null): Promise<Station | null> {
     const existing = findStationByCallsign(callsign);
     if (!existing) {
         return null;
     }
 
-    const { qrz_data, qrz_last_fetched_at } = await fetchAndCacheQRZ(existing.callsign);
+    const { qrz_data, qrz_last_fetched_at } = await fetchAndCacheQRZ(existing.callsign, userId);
 
     return createOrUpdateStationRecord(existing.callsign, {
         qrz_data,

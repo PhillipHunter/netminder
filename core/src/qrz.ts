@@ -10,7 +10,6 @@ export interface QRZCredentials {
 interface QRZSessionCache {
     key: string;
     expiresAt: number;
-    credentialsFingerprint: string;
 }
 
 interface QRZCallsignData {
@@ -72,7 +71,7 @@ export interface QRZLookupResult {
     raw: QRZCallsignData;
 }
 
-type CredentialProvider = () => QRZCredentials | null;
+type CredentialProvider = (userId: number | null) => QRZCredentials | null;
 
 const QRZ_XML_URL = 'https://xmldata.qrz.com/xml/current/';
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -80,15 +79,15 @@ const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY_MS = 1000;
 
 let credentialProvider: CredentialProvider = () => null;
-let sessionCache: QRZSessionCache | null = null;
+const sessionCache = new Map<string, QRZSessionCache>();
 
 export function setQRZCredentialProvider(provider: CredentialProvider): void {
     credentialProvider = provider;
     clearQRZSessionCache();
 }
 
-function getCredentials(): QRZCredentials | null {
-    return credentialProvider();
+function getCredentials(userId: number | null): QRZCredentials | null {
+    return credentialProvider(userId);
 }
 
 function createCredentialsFingerprint(username: string, password: string): string {
@@ -270,11 +269,11 @@ async function authenticateWithCredentials(username: string, password: string): 
     }
 }
 
-async function getSessionKey(): Promise<string | null> {
+async function getSessionKey(userId: number | null): Promise<{ key: string; fingerprint: string } | null> {
     let credentials: QRZCredentials | null = null;
 
     try {
-        credentials = getCredentials();
+        credentials = getCredentials(userId);
     } catch (error: unknown) {
         if (error instanceof SettingsServiceError) {
             console.error('QRZ credentials unavailable:', error.message);
@@ -290,12 +289,9 @@ async function getSessionKey(): Promise<string | null> {
 
     const fingerprint = createCredentialsFingerprint(credentials.username, credentials.password);
 
-    if (
-        sessionCache
-        && sessionCache.expiresAt > Date.now()
-        && sessionCache.credentialsFingerprint === fingerprint
-    ) {
-        return sessionCache.key;
+    const cached = sessionCache.get(fingerprint);
+    if (cached && cached.expiresAt > Date.now()) {
+        return { key: cached.key, fingerprint };
     }
 
     const result = await authenticateWithCredentials(credentials.username, credentials.password);
@@ -304,25 +300,24 @@ async function getSessionKey(): Promise<string | null> {
         return null;
     }
 
-    sessionCache = {
+    sessionCache.set(fingerprint, {
         key: result.key,
-        expiresAt: Date.now() + SESSION_TTL_MS,
-        credentialsFingerprint: fingerprint
-    };
+        expiresAt: Date.now() + SESSION_TTL_MS
+    });
 
     console.log('QRZ session authenticated successfully');
-    return result.key;
+    return { key: result.key, fingerprint };
 }
 
-export async function lookupCallsign(callsign: string): Promise<QRZLookupResult | null> {
+export async function lookupCallsign(callsign: string, userId: number | null): Promise<QRZLookupResult | null> {
     const normalizedCallsign = callsign.toUpperCase();
 
-    const sessionKey = await getSessionKey();
-    if (!sessionKey) {
+    const session = await getSessionKey(userId);
+    if (!session) {
         return null;
     }
 
-    const url = `${QRZ_XML_URL}?s=${encodeURIComponent(sessionKey)}&callsign=${encodeURIComponent(normalizedCallsign)}`;
+    const url = `${QRZ_XML_URL}?s=${encodeURIComponent(session.key)}&callsign=${encodeURIComponent(normalizedCallsign)}`;
     const xml = await fetchWithRetry(url);
 
     if (!xml) {
@@ -332,14 +327,14 @@ export async function lookupCallsign(callsign: string): Promise<QRZLookupResult 
     const parsed = parseXML(xml);
     if ('Error' in parsed && parsed.Error.includes('Session Timeout')) {
         console.log('QRZ session expired, clearing cache and retrying...');
-        sessionCache = null;
+        sessionCache.delete(session.fingerprint);
 
-        const newSessionKey = await getSessionKey();
-        if (!newSessionKey) {
+        const newSession = await getSessionKey(userId);
+        if (!newSession) {
             return null;
         }
 
-        const retryUrl = `${QRZ_XML_URL}?s=${encodeURIComponent(newSessionKey)}&callsign=${encodeURIComponent(normalizedCallsign)}`;
+        const retryUrl = `${QRZ_XML_URL}?s=${encodeURIComponent(newSession.key)}&callsign=${encodeURIComponent(normalizedCallsign)}`;
         const retryXml = await fetchWithRetry(retryUrl);
 
         if (!retryXml) {
@@ -366,9 +361,9 @@ export function shouldRefreshQRZ(lastFetchedAt: string | null, ttlDays = 7): boo
     return (now - lastFetch) > ttlMs;
 }
 
-export function isQRZConfigured(): boolean {
+export function isQRZConfigured(userId: number | null): boolean {
     try {
-        return getCredentials() !== null;
+        return getCredentials(userId) !== null;
     } catch (error: unknown) {
         if (error instanceof SettingsServiceError) {
             return false;
@@ -379,7 +374,7 @@ export function isQRZConfigured(): boolean {
 }
 
 export function clearQRZSessionCache(): void {
-    sessionCache = null;
+    sessionCache.clear();
 }
 
 export async function verifyQRZCredentials(username: string, password: string): Promise<{ valid: boolean; message?: string }> {
