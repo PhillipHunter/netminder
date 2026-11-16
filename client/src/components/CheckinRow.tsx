@@ -19,6 +19,7 @@ import {
     updateCheckin as updateCheckinApi,
     updateStation
 } from '../api';
+import { useAppConfig } from '../contexts/AppConfigContext';
 
 import {
     EditableName,
@@ -52,6 +53,7 @@ export function CheckinRow({
     onSelect,
     isSelected
 }: CheckinRowProps) {
+    const { mobilityEnabled } = useAppConfig();
     const formatTime = (timestamp: string) => {
         const date = new Date(timestamp);
         return date.toLocaleTimeString('en-US', {
@@ -303,43 +305,45 @@ export function CheckinRow({
             </td>
 
             {/* Mobility */}
-            <td className='px-4 py-3'>
-                <div className='flex gap-1'>
-                    <button
-                        onClick={() => { void handleMobilityChange('neither'); }}
-                        className={`rounded-lg p-2 transition ${
-                            checkin.mobility === 'neither'
-                                ? 'bg-sky-500/20 text-sky-400'
-                                : 'text-slate-500 hover:bg-slate-800 hover:text-slate-300'
-                        }`}
-                        title='Fixed station'
-                    >
-                        <FaHome size={16} />
-                    </button>
-                    <button
-                        onClick={() => { void handleMobilityChange('mobile'); }}
-                        className={`rounded-lg p-2 transition ${
-                            checkin.mobility === 'mobile'
-                                ? 'bg-sky-500/20 text-sky-400'
-                                : 'text-slate-500 hover:bg-slate-800 hover:text-slate-300'
-                        }`}
-                        title='Mobile'
-                    >
-                        <FaCar size={16} />
-                    </button>
-                    <button
-                        onClick={() => { void handleMobilityChange('portable'); }}
-                        className={`rounded-lg p-2 transition ${
-                            checkin.mobility === 'portable'
-                                ? 'bg-sky-500/20 text-sky-400'
-                                : 'text-slate-500 hover:bg-slate-800 hover:text-slate-300'
-                        }`}
-                        title='Portable'
-                    >
-                        <FaSuitcase size={16} />
-                    </button>
-                </div>
-            </td>
+            {mobilityEnabled && (
+                <td className='px-4 py-3'>
+                    <div className='flex gap-1'>
+                        <button
+                            onClick={() => { void handleMobilityChange('neither'); }}
+                            className={`rounded-lg p-2 transition ${
+                                checkin.mobility === 'neither'
+                                    ? 'bg-sky-500/20 text-sky-400'
+                                    : 'text-slate-500 hover:bg-slate-800 hover:text-slate-300'
+                            }`}
+                            title='Fixed station'
+                        >
+                            <FaHome size={16} />
+                        </button>
+                        <button
+                            onClick={() => { void handleMobilityChange('mobile'); }}
+                            className={`rounded-lg p-2 transition ${
+                                checkin.mobility === 'mobile'
+                                    ? 'bg-sky-500/20 text-sky-400'
+                                    : 'text-slate-500 hover:bg-slate-800 hover:text-slate-300'
+                            }`}
+                            title='Mobile'
+                        >
+                            <FaCar size={16} />
+                        </button>
+                        <button
+                            onClick={() => { void handleMobilityChange('portable'); }}
+                            className={`rounded-lg p-2 transition ${
+                                checkin.mobility === 'portable'
+                                    ? 'bg-sky-500/20 text-sky-400'
+                                    : 'text-slate-500 hover:bg-slate-800 hover:text-slate-300'
+                            }`}
+                            title='Portable'
+                        >
+                            <FaSuitcase size={16} />
+                        </button>
+                    </div>
+                </td>
+            )}
 
             {/* Staying */}
             <td className='px-4 py-3'>

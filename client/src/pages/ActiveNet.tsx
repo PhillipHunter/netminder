@@ -34,6 +34,7 @@ import { EditableText } from '../components/EditableName';
 import { PageHeader } from '../components/PageHeader';
 import { StationHistoryPanel } from '../components/StationHistoryPanel';
 import { StickyOnScroll } from '../components/StickyOnScroll';
+import { useAppConfig } from '../contexts/AppConfigContext';
 import {
     formatDurationLabel,
     getDurationMinutes
@@ -53,6 +54,7 @@ function getLiveClockParts(date: Date): { hours: string; minutes: string; period
 
 export function ActiveNet() {
     const { id } = useParams<{ id: string }>();
+    const { mobilityEnabled } = useAppConfig();
 
     const [net, setNet] = useState<Net | null>(null);
     const [checkins, setCheckins] = useState<Checkin[]>([]);
@@ -354,7 +356,7 @@ export function ActiveNet() {
             'Time',
             'Callsign',
             'Name',
-            'Mobility',
+            ...(mobilityEnabled ? ['Mobility'] : []),
             'Staying',
             'Topic Answer',
             'Called Back'
@@ -364,7 +366,7 @@ export function ActiveNet() {
             new Date(c.time_entered).toLocaleString(),
             c.callsign,
             c.display_name ?? '',
-            c.mobility,
+            ...(mobilityEnabled ? [c.mobility] : []),
             c.staying ? 'Yes' : 'No',
             c.topic_answer ?? '',
             c.called_back ? 'Yes' : 'No'
@@ -583,18 +585,22 @@ export function ActiveNet() {
                                     {counts.inAndOut}
                                 </div>
                             </div>
-                            <div className='flex items-center gap-2 rounded-full border border-slate-700/70 bg-gradient-to-b from-slate-800 to-slate-900 px-4 py-2 shadow-md shadow-black/20'>
-                                <FaCar className='text-indigo-400' />
-                                <div className='text-lg font-bold text-slate-100'>
-                                    {counts.mobile}
-                                </div>
-                            </div>
-                            <div className='flex items-center gap-2 rounded-full border border-slate-700/70 bg-gradient-to-b from-slate-800 to-slate-900 px-4 py-2 shadow-md shadow-black/20'>
-                                <FaSuitcase className='text-indigo-400' />
-                                <div className='text-lg font-bold text-slate-100'>
-                                    {counts.portable}
-                                </div>
-                            </div>
+                            {mobilityEnabled && (
+                                <>
+                                    <div className='flex items-center gap-2 rounded-full border border-slate-700/70 bg-gradient-to-b from-slate-800 to-slate-900 px-4 py-2 shadow-md shadow-black/20'>
+                                        <FaCar className='text-indigo-400' />
+                                        <div className='text-lg font-bold text-slate-100'>
+                                            {counts.mobile}
+                                        </div>
+                                    </div>
+                                    <div className='flex items-center gap-2 rounded-full border border-slate-700/70 bg-gradient-to-b from-slate-800 to-slate-900 px-4 py-2 shadow-md shadow-black/20'>
+                                        <FaSuitcase className='text-indigo-400' />
+                                        <div className='text-lg font-bold text-slate-100'>
+                                            {counts.portable}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
 
@@ -720,9 +726,11 @@ export function ActiveNet() {
                                         <th className='px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400'>
                                             Name
                                         </th>
-                                        <th className='px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400'>
-                                            Mobility
-                                        </th>
+                                        {mobilityEnabled && (
+                                            <th className='px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400'>
+                                                Mobility
+                                            </th>
+                                        )}
                                         <th className='px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400'>
                                             Status
                                         </th>
@@ -769,7 +777,7 @@ export function ActiveNet() {
                                     <tr>
                                         <td
                                             className='px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400'
-                                            colSpan={9}
+                                            colSpan={mobilityEnabled ? 9 : 8}
                                         >
                                             Total Check-Ins:
                                             {' '}

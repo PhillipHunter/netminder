@@ -4,6 +4,7 @@ import type {
     App,
     auth,
     checkins,
+    config,
     health,
     nets,
     settings,
@@ -36,6 +37,7 @@ export type StationStats = stations.StationStatsSchema;
 export type StationLookupResponse = stations.LookupResponse['lookup'];
 export type StationFieldSource = stations.StationLookupFieldSchema['source'];
 export type QrzSettingsStatus = settings.QRZStatusSchema;
+export type AppConfig = config.AppConfigSchema;
 
 interface EdenErrorPayload {
     error: {
@@ -283,6 +285,16 @@ export async function updateQrzSettings(payload: settings.UpdateBody): Promise<Q
 
 export async function deleteQrzSettings(): Promise<void> {
     await unwrapResponse(backend.api.settings.qrz.delete(), 'Failed to remove QRZ credentials');
+}
+
+export async function fetchAppConfig(): Promise<AppConfig> {
+    const data = await unwrapResponse<config.GetResponse>(backend.api.config.get(), 'Failed to load app configuration');
+    return data.config;
+}
+
+export async function updateAppSettings(payload: settings.UpdateAppBody): Promise<AppConfig> {
+    const data = await unwrapResponse<settings.UpdateAppResponse>(backend.api.settings.app.put(payload), 'Failed to update app settings');
+    return data.config;
 }
 
 export async function deleteNet(id: number): Promise<void> {

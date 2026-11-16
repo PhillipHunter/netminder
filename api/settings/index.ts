@@ -25,3 +25,10 @@ export {
     type DeleteErrorResponse,
     type DeleteResponse
 } from './delete';
+export {
+    updateAppContract,
+    updateAppHandler,
+    type UpdateAppBody,
+    type UpdateAppErrorResponse,
+    type UpdateAppResponse
+} from './app';

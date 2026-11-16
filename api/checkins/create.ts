@@ -6,7 +6,8 @@ import {
 
 import {
     createCheckinWithMeta,
-    findNetById
+    findNetById,
+    getMobilityEnabled
 } from '@netminder/dal';
 
 import {
@@ -121,7 +122,7 @@ export const createHandler = async ({ params, body, set }: CreateContext): Promi
     }
 
     try {
-        const normalizedMobility = body.mobility ? normalizeMobility(body.mobility) : undefined;
+        const normalizedMobility = body.mobility && getMobilityEnabled() ? normalizeMobility(body.mobility) : undefined;
         const result = await createCheckinWithMeta(netId, {
             callsign: body.callsign,
             mobility: normalizedMobility,

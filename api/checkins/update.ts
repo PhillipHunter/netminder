@@ -4,7 +4,10 @@ import {
     type Static
 } from 'elysia';
 
-import { updateCheckinRecord } from '@netminder/dal';
+import {
+    getMobilityEnabled,
+    updateCheckinRecord
+} from '@netminder/dal';
 
 import {
     errorResponse,
@@ -72,7 +75,7 @@ export const updateHandler = ({ params, body, set }: UpdateContext): UpdateRespo
     }
 
     try {
-        const mobilityValue = body.mobility ? normalizeMobility(body.mobility) : undefined;
+        const mobilityValue = body.mobility && getMobilityEnabled() ? normalizeMobility(body.mobility) : undefined;
 
         const updated = updateCheckinRecord(id, {
             mobility: mobilityValue,
