@@ -11,7 +11,8 @@ import type { NetListItem } from '../api';
 import {
     createNet,
     deleteNet,
-    fetchNets
+    fetchNets,
+    isNotFoundError
 } from '../api';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
@@ -51,22 +52,30 @@ export const Dashboard = () => {
     const pageEnd = currentPage * pageSize + nets.length;
     const totalDisplay = hasExactTotal ? totalNets : (hasNextPage ? `${pageEnd}+` : totalNets);
 
-    const loadNets = useCallback(async () => {
-        if (isFetchingRef.current) {
+    interface LoadOptions {
+        background?: boolean;
+        isStopped?: () => boolean;
+    }
+
+    const loadNets = useCallback(async ({ background = false, isStopped = () => false }: LoadOptions = {}) => {
+        if (background && isFetchingRef.current) {
             return;
         }
 
         try {
             isFetchingRef.current = true;
-            setLoading(true);
-            setError(null);
+            if (!background) {
+                setLoading(true);
+                setError(null);
+            }
             const offset = currentPage * pageSize;
             const result = await fetchNets(pageSize, offset);
+            if (isStopped()) {
+                return;
+            }
             const fetchedNets = result.nets;
 
             if (fetchedNets.length === 0 && currentPage > 0) {
-                isFetchingRef.current = false;
-                setLoading(false);
                 setCurrentPage(p => Math.max(0, p - 1));
                 return;
             }
@@ -80,15 +89,42 @@ export const Dashboard = () => {
             setTotalNets(total);
             setHasExactTotal(metaHasTotal);
         } catch (err) {
-            setError(resolveErrorMessage(err, 'An error occurred'));
+            if (isStopped()) {
+                return;
+            }
+            if (background) {
+                console.error('Error refreshing nets:', err);
+            } else {
+                setError(resolveErrorMessage(err, 'An error occurred'));
+            }
         } finally {
-            setLoading(false);
             isFetchingRef.current = false;
+            if (!background && !isStopped()) {
+                setLoading(false);
+            }
         }
     }, [currentPage, pageSize]);
 
     useEffect(() => {
-        void loadNets();
+        const polling = { stopped: false };
+        const isStopped = () => polling.stopped;
+        const refresh = () => { void loadNets({ background: true, isStopped }); };
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                refresh();
+            }
+        };
+
+        void loadNets({ isStopped });
+
+        // Keep the list current as nets are shared, hidden, or ended elsewhere
+        const interval = setInterval(refresh, 10000);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => {
+            polling.stopped = true;
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
     }, [loadNets]);
 
     const handleCreateNet = async () => {
@@ -143,6 +179,11 @@ export const Dashboard = () => {
             await loadNets();
             setNetToDelete(null);
         } catch (err) {
+            if (isNotFoundError(err)) {
+                setNetToDelete(null);
+                void loadNets({ background: true });
+                return;
+            }
             setError(resolveErrorMessage(err, 'Failed to delete net'));
         } finally {
             setIsDeleting(false);
