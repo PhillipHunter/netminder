@@ -37,7 +37,7 @@ export const createContract = {
         }),
         mobility: t.Optional(mobilitySchema),
         staying: t.Optional(t.Boolean({ description: 'True when the station is staying for the duration of the net' })),
-        topic_answer: t.Optional(t.String({ description: 'Answer the station provided for the current net topic' })),
+        topic_answer: t.Optional(t.String({ description: 'Comments recorded for the station check-in' })),
         operator_notes: t.Optional(t.String({ description: 'Internal notes for net control regarding this station' })),
         preferred_name: t.Optional(t.String({
             description: 'Preferred name for the station; stored on the station profile',

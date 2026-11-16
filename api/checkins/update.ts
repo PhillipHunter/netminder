@@ -30,7 +30,7 @@ export const updateContract = {
         mobility: t.Optional(mobilitySchema),
         staying: t.Optional(t.Boolean({ description: 'Update whether the station is staying for the remainder of the net' })),
         called_back: t.Optional(t.Boolean({ description: 'Flag indicating if net control has completed a callback with the station' })),
-        topic_answer: t.Optional(t.Union([t.String({ description: 'Updated answer to the current topic question' }), t.Null()], { description: 'Provide a string to set the topic answer or null to clear it' })),
+        topic_answer: t.Optional(t.Union([t.String({ description: 'Updated comments for the check-in' }), t.Null()], { description: 'Provide a string to set comments or null to clear them' })),
         operator_notes: t.Optional(t.Union([t.String({ description: 'Notes for operators managing the net' }), t.Null()], { description: 'Provide a string to set operator notes or null to clear them' }))
     }, { description: 'Fields that can be adjusted on an existing checkin' }),
     detail: {
