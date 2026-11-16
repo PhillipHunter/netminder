@@ -10,7 +10,10 @@ import {
     FaStop,
     FaSuitcase
 } from 'react-icons/fa';
-import { useParams } from 'react-router-dom';
+import {
+    Link,
+    useParams
+} from 'react-router-dom';
 
 import type {
     Checkin,
@@ -23,6 +26,7 @@ import {
     endNetFormal,
     fetchCheckins,
     fetchNet,
+    isNotFoundError,
     restartNet,
     resumeNetFormal,
     startNet,
@@ -58,6 +62,7 @@ export function ActiveNet() {
     const [checkins, setCheckins] = useState<Checkin[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [isUnavailable, setIsUnavailable] = useState(false);
 
     // History panel
     const [historyPanelOpen, setHistoryPanelOpen] = useState(false);
@@ -77,6 +82,12 @@ export function ActiveNet() {
         if (!id)
             return;
 
+        const load = { cancelled: false };
+        const isCancelled = () => load.cancelled;
+
+        setIsUnavailable(false);
+        setError(null);
+
         async function loadNet() {
             try {
                 setIsLoading(true);
@@ -88,41 +99,82 @@ export function ActiveNet() {
                 }
 
                 const details = await fetchNet(netId);
+                if (isCancelled())
+                    return;
                 setNet(details);
             } catch (err) {
+                if (isCancelled())
+                    return;
+                if (isNotFoundError(err)) {
+                    setIsUnavailable(true);
+                    return;
+                }
                 console.error('Error fetching net:', err);
                 setError('Failed to load net details');
             } finally {
-                setIsLoading(false);
+                if (!isCancelled())
+                    setIsLoading(false);
             }
         }
 
         void loadNet();
+        return () => { load.cancelled = true; };
     }, [id]);
 
-    // Fetch checkins
+    // Refresh net details and checkins
     useEffect(() => {
         if (!id)
             return;
 
-        async function loadCheckins() {
-            try {
-                const netId = Number(id);
-                if (Number.isNaN(netId))
-                    return;
-                const response = await fetchCheckins(netId);
-                const sorted = [...response].sort((a, b) => new Date(a.time_entered).getTime() - new Date(b.time_entered).getTime());
+        const netId = Number(id);
+        if (Number.isNaN(netId))
+            return;
+
+        const polling = { stopped: false };
+        const isStopped = () => polling.stopped;
+
+        async function refresh() {
+            const [netResult, checkinsResult] = await Promise.allSettled([
+                fetchNet(netId),
+                fetchCheckins(netId)
+            ]);
+
+            if (isStopped())
+                return;
+
+            const notFound = [netResult, checkinsResult].some(
+                result => result.status === 'rejected' && isNotFoundError(result.reason)
+            );
+            if (notFound) {
+                polling.stopped = true;
+                setIsUnavailable(true);
+                setNet(null);
+                setCheckins([]);
+                return;
+            }
+
+            if (netResult.status === 'fulfilled') {
+                setNet(netResult.value);
+            } else {
+                console.error('Error fetching net:', netResult.reason);
+            }
+
+            if (checkinsResult.status === 'fulfilled') {
+                const sorted = [...checkinsResult.value].sort((a, b) => new Date(a.time_entered).getTime() - new Date(b.time_entered).getTime());
                 setCheckins(sorted);
-            } catch (err) {
-                console.error('Error fetching checkins:', err);
+            } else {
+                console.error('Error fetching checkins:', checkinsResult.reason);
             }
         }
 
-        void loadCheckins();
+        void refresh();
 
         // Poll for updates every 10 seconds
-        const interval = setInterval(() => void loadCheckins(), 10000);
-        return () => { clearInterval(interval); };
+        const interval = setInterval(() => void refresh(), 10000);
+        return () => {
+            polling.stopped = true;
+            clearInterval(interval);
+        };
     }, [id]);
 
     // Calculate summary counts
@@ -518,6 +570,22 @@ export function ActiveNet() {
                     >
                     </path>
                 </svg>
+            </div>
+        );
+    }
+
+    if (isUnavailable) {
+        return (
+            <div className='flex min-h-screen items-center justify-center'>
+                <div className='rounded-lg border border-slate-700/60 bg-slate-900/60 p-6 text-center text-slate-300'>
+                    <p>This net is no longer available to you.</p>
+                    <Link
+                        to='/'
+                        className='mt-4 inline-block rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-400'
+                    >
+                        Back to Dashboard
+                    </Link>
+                </div>
             </div>
         );
     }

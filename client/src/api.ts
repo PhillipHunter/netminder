@@ -77,6 +77,22 @@ function isEdenErrorPayload(value: unknown): value is EdenErrorPayload {
     return typeof error.code === 'string' && typeof error.message === 'string';
 }
 
+export class ApiError extends Error {
+    readonly status: number;
+    readonly code: string | null;
+
+    constructor(message: string, status: number, code: string | null) {
+        super(message);
+        this.name = 'ApiError';
+        this.status = status;
+        this.code = code;
+    }
+}
+
+export function isNotFoundError(error: unknown): boolean {
+    return error instanceof ApiError && (error.status === 404 || error.code === 'NET_NOT_FOUND');
+}
+
 async function extractResponseError(response: unknown, fallback: string): Promise<string> {
     if (!(response instanceof Response)) {
         return fallback;
@@ -132,7 +148,9 @@ async function unwrapResponse<TData = unknown, TResponse = unknown>(
             }
         }
 
-        throw new Error(responseMessage);
+        const errorValue = (result.error as { value?: unknown } | null)?.value;
+        const code = isEdenErrorPayload(errorValue) ? errorValue.error.code : null;
+        throw new ApiError(responseMessage, result.status, code);
     }
 
     const data = result.data;
