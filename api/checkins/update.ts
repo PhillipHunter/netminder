@@ -4,10 +4,15 @@ import {
     type Static
 } from 'elysia';
 
-import { updateCheckinRecord } from '@netminder/dal';
+import {
+    findVisibleNetForCheckin,
+    updateCheckinRecord
+} from '@netminder/dal';
 
+import type { AuthUser } from '../auth/middleware';
 import {
     errorResponse,
+    unauthorizedResponse,
     type ErrorResponse
 } from '../common/errors';
 import { parsePositiveInt } from '../common/validation';
@@ -52,6 +57,7 @@ export type UpdateResponse = Static<typeof updateContract.response[200]>;
 interface UpdateContext {
     params: UpdateParams;
     body: UpdateBody;
+    user?: AuthUser | null;
     set: Context['set'];
 }
 
@@ -59,7 +65,12 @@ function parseId(params: UpdateParams): number | null {
     return parsePositiveInt(params.id);
 }
 
-export const updateHandler = ({ params, body, set }: UpdateContext): UpdateResponse | ErrorResponse => {
+export const updateHandler = ({ params, body, user, set }: UpdateContext): UpdateResponse | ErrorResponse => {
+    if (!user) {
+        set.status = 401;
+        return unauthorizedResponse();
+    }
+
     const id = parseId(params);
     if (id === null) {
         set.status = 400;
@@ -67,6 +78,16 @@ export const updateHandler = ({ params, body, set }: UpdateContext): UpdateRespo
             error: {
                 code: 'INVALID_ID',
                 message: 'Invalid checkin ID'
+            }
+        };
+    }
+
+    if (!findVisibleNetForCheckin(id, user.userId)) {
+        set.status = 404;
+        return {
+            error: {
+                code: 'CHECKIN_NOT_FOUND',
+                message: 'Checkin not found'
             }
         };
     }

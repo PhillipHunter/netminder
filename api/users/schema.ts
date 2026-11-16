@@ -12,3 +12,8 @@ export const userSchema = t.Object({
 });
 
 export type UserSchema = typeof userSchema.static;
+
+export const userWithNetCountSchema = t.Object({
+    ...userSchema.properties,
+    private_net_count: t.Number({ description: 'Number of private nets owned by the user that would be deleted along with the account' })
+});

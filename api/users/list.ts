@@ -3,9 +3,12 @@ import {
     type Static
 } from 'elysia';
 
-import { listUsers } from '@netminder/dal';
+import {
+    countPrivateNetsOwnedBy,
+    listUsers
+} from '@netminder/dal';
 
-import { userSchema } from './schema';
+import { userWithNetCountSchema } from './schema';
 
 export const listContract = {
     detail: {
@@ -13,7 +16,7 @@ export const listContract = {
         description: 'Returns all user accounts sorted by creation order.',
         tags: ['Users'] as string[]
     },
-    response: t.Object({ users: t.Array(userSchema, { description: 'Collection of user resources available in the system' }) }, { description: 'Users payload containing all known user accounts' })
+    response: t.Object({ users: t.Array(userWithNetCountSchema, { description: 'Collection of user resources available in the system' }) }, { description: 'Users payload containing all known user accounts' })
 } as const;
 
 export type ListResponse = Static<typeof listContract.response>;
@@ -29,7 +32,8 @@ export const listHandler = (): ListResponse => {
             must_change_password: user.must_change_password,
             last_login_at: user.last_login_at,
             created_at: user.created_at,
-            updated_at: user.updated_at
+            updated_at: user.updated_at,
+            private_net_count: countPrivateNetsOwnedBy(user.id)
         }))
     };
 };

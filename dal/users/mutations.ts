@@ -31,6 +31,8 @@ const INSERT_USER_SQL = `
 `;
 
 const DELETE_USER_SQL = 'DELETE FROM users WHERE id = ?';
+const DELETE_PRIVATE_NETS_SQL = 'DELETE FROM nets WHERE created_by = ? AND shared = 0';
+const TRANSFER_SHARED_NETS_SQL = 'UPDATE nets SET created_by = ? WHERE created_by = ?';
 
 export function insertUser(record: CreateUserRecord): UserRow {
     const stmt = db.prepare(INSERT_USER_SQL);
@@ -100,7 +102,11 @@ export function updateUserRecord(id: number, updates: UpdateUserRecord): UserRow
     return findUserById(id);
 }
 
-export function deleteUserRecord(id: number): boolean {
-    const result = db.prepare(DELETE_USER_SQL).run(id);
-    return result.changes > 0;
+export function deleteUserRecord(id: number, transferToUserId: number): boolean {
+    return db.transaction(() => {
+        db.prepare(DELETE_PRIVATE_NETS_SQL).run(id);
+        db.prepare(TRANSFER_SHARED_NETS_SQL).run(transferToUserId, id);
+        const result = db.prepare(DELETE_USER_SQL).run(id);
+        return result.changes > 0;
+    });
 }

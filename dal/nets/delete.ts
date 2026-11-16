@@ -8,7 +8,9 @@ const SELECT_NET_SQL = `
         ended_at,
         formal_ended_at,
         topic,
-        created_at
+        created_at,
+        created_by,
+        shared
     FROM nets
     WHERE id = ?
 `;

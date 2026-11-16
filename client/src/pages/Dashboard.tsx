@@ -30,6 +30,7 @@ export const Dashboard = () => {
     const [newNetTopic, setNewNetTopic] = useState('');
     const [isCreating, setIsCreating] = useState(false);
     const [endOtherActiveNets, setEndOtherActiveNets] = useState(false);
+    const [sharedNet, setSharedNet] = useState(false);
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(0);
@@ -95,7 +96,8 @@ export const Dashboard = () => {
             setIsCreating(true);
             const payload = {
                 topic: newNetTopic.trim() || undefined,
-                end_active: endOtherActiveNets || undefined
+                end_active: endOtherActiveNets || undefined,
+                shared: sharedNet || undefined
             };
             const newNet = await createNet(payload);
 
@@ -108,6 +110,7 @@ export const Dashboard = () => {
             setIsModalOpen(false);
             setNewNetTopic('');
             setEndOtherActiveNets(false);
+            setSharedNet(false);
         }
     };
 
@@ -125,6 +128,7 @@ export const Dashboard = () => {
         setIsModalOpen(false);
         setNewNetTopic('');
         setEndOtherActiveNets(false);
+        setSharedNet(false);
     };
 
     const handleDeleteNet = async () => {
@@ -293,6 +297,11 @@ export const Dashboard = () => {
                                                 </td>
                                                 <td className='px-4 py-3 text-sm text-slate-300'>
                                                     {net.topic ?? <span className='text-slate-500 italic'>No topic</span>}
+                                                    {net.shared && (
+                                                        <span className='ml-2 inline-flex items-center rounded-full border border-sky-500/30 bg-gradient-to-r from-sky-500/15 to-indigo-500/15 px-2 py-1 text-xs font-medium text-sky-200'>
+                                                            Shared
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className='whitespace-nowrap px-4 py-3 text-sm'>
                                                     {net.started_at === null ? (
@@ -327,17 +336,19 @@ export const Dashboard = () => {
                                                 </td>
                                                 <td className='whitespace-nowrap px-4 py-3 text-sm'>
                                                     <div className='flex gap-2'>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setNetToDelete(net);
-                                                            }}
-                                                            className='rounded p-1.5 text-red-400 hover:text-red-300 hover:bg-red-950/30 transition'
-                                                            title='Delete net'
-                                                            aria-label='Delete net'
-                                                        >
-                                                            <FaTrash size={14} />
-                                                        </button>
+                                                        {net.is_owner && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setNetToDelete(net);
+                                                                }}
+                                                                className='rounded p-1.5 text-red-400 hover:text-red-300 hover:bg-red-950/30 transition'
+                                                                title='Delete net'
+                                                                aria-label='Delete net'
+                                                            >
+                                                                <FaTrash size={14} />
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -407,7 +418,7 @@ export const Dashboard = () => {
 
                     <div
                         className='mb-6 flex items-start gap-3 rounded-lg border border-slate-700/60 bg-slate-900/60 px-4 py-3'
-                        title='When enabled, any other nets still marked as in progress will be ended before this new net is created.'
+                        title='When enabled, any of your other nets still marked as in progress will be ended before this new net is created.'
                     >
                         <input
                             id='end-other-nets'
@@ -421,7 +432,28 @@ export const Dashboard = () => {
                                 End other active nets
                             </div>
                             <p className='mt-1 text-xs text-slate-400'>
-                                Automatically closes any nets that are still in progress before creating this one.
+                                Automatically closes any of your nets that are still in progress before creating this one.
+                            </p>
+                        </label>
+                    </div>
+
+                    <div
+                        className='mb-6 flex items-start gap-3 rounded-lg border border-slate-700/60 bg-slate-900/60 px-4 py-3'
+                        title='When enabled, every user can view this net and add check-ins. Only you can run it.'
+                    >
+                        <input
+                            id='shared-net'
+                            type='checkbox'
+                            checked={sharedNet}
+                            onChange={(e) => { setSharedNet(e.target.checked); }}
+                            className='mt-1 h-4 w-4 rounded border-slate-700 bg-slate-900 text-sky-500 focus:ring-2 focus:ring-sky-500 focus:ring-offset-0'
+                        />
+                        <label htmlFor='shared-net' className='flex-1 cursor-pointer select-none'>
+                            <div className='text-sm font-medium text-slate-200'>
+                                Shared net
+                            </div>
+                            <p className='mt-1 text-xs text-slate-400'>
+                                All users can view this net and contribute check-ins. Leave off to keep it private to you.
                             </p>
                         </label>
                     </div>

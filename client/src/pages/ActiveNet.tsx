@@ -343,6 +343,23 @@ export function ActiveNet() {
         }
     };
 
+    const handleSharedToggle = async (nextShared: boolean) => {
+        if (!id)
+            return;
+
+        try {
+            const netId = Number(id);
+            if (Number.isNaN(netId))
+                return;
+
+            const updated = await updateNet(netId, { shared: nextShared });
+            setNet(updated);
+        } catch (err) {
+            console.error('Error updating shared setting:', err);
+            alert(resolveErrorMessage(err, 'Failed to update shared setting'));
+        }
+    };
+
     const handleExportCSV = () => {
         if (checkins.length === 0) {
             alert('No check-ins to export');
@@ -601,17 +618,43 @@ export function ActiveNet() {
                     <div className='mt-6 flex flex-wrap items-start justify-between gap-4'>
                         <div className='min-w-[240px] flex-1'>
                             <div className='text-sm font-medium text-slate-400'>Topic</div>
-                            <EditableText
-                                value={net.topic ?? null}
-                                onSave={handleNetTopicSave}
-                                placeholder='Click to add topic'
-                                className='mt-1'
-                                textClassName='w-full text-left text-base text-slate-300 hover:text-slate-100'
-                                inputProps={{ className: 'text-base' }}
-                            />
+                            {net.is_owner ? (
+                                <EditableText
+                                    value={net.topic ?? null}
+                                    onSave={handleNetTopicSave}
+                                    placeholder='Click to add topic'
+                                    className='mt-1'
+                                    textClassName='w-full text-left text-base text-slate-300 hover:text-slate-100'
+                                    inputProps={{ className: 'text-base' }}
+                                />
+                            ) : (
+                                <div className='mt-1 text-base text-slate-300'>
+                                    {net.topic ?? <span className='text-slate-500 italic'>No topic</span>}
+                                </div>
+                            )}
+                            {net.is_owner ? (
+                                <label
+                                    htmlFor='net-shared'
+                                    className='mt-3 inline-flex cursor-pointer select-none items-center gap-2 text-sm text-slate-300'
+                                    title='When enabled, all users can view this net and add check-ins.'
+                                >
+                                    <input
+                                        id='net-shared'
+                                        type='checkbox'
+                                        checked={net.shared}
+                                        onChange={(e) => { void handleSharedToggle(e.target.checked); }}
+                                        className='h-4 w-4 rounded border-slate-700 bg-slate-900 text-sky-500 focus:ring-2 focus:ring-sky-500 focus:ring-offset-0'
+                                    />
+                                    Shared
+                                </label>
+                            ) : (
+                                <span className='mt-3 inline-flex items-center rounded-full border border-sky-500/30 bg-gradient-to-r from-sky-500/15 to-indigo-500/15 px-2 py-1 text-xs font-medium text-sky-200'>
+                                    Shared
+                                </span>
+                            )}
                         </div>
                         <div className='mt-4 flex w-full flex-wrap justify-end gap-3 sm:mt-0 sm:w-auto'>
-                            {isPendingNet ? (
+                            {!net.is_owner ? null : isPendingNet ? (
                                 <button
                                     onClick={() => { void handleStartPendingNet(); }}
                                     className='flex items-center gap-2 rounded-lg border border-sky-500/50 bg-gradient-to-r from-sky-500/20 to-cyan-500/10 px-4 py-2 text-sm font-semibold text-sky-200 shadow-md shadow-sky-500/10 transition-all duration-200 hover:border-sky-400 hover:shadow-lg hover:shadow-sky-500/20'
@@ -670,8 +713,10 @@ export function ActiveNet() {
                     {checkinsDisabled && (
                         <p className='mb-3 text-sm text-slate-400'>
                             {isPendingNet
-                                ? 'Start the net to begin accepting check-ins.'
-                                : 'This net has ended. Restart the net to log additional activity.'}
+                                ? (net.is_owner ? 'Start the net to begin accepting check-ins.' : 'The net creator has not started this net yet.')
+                                : net.is_owner
+                                    ? 'This net has ended. Restart the net to log additional activity.'
+                                    : 'This net has ended. Only the net creator can restart it.'}
                         </p>
                     )}
                     <CallsignInput

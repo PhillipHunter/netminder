@@ -23,6 +23,7 @@ export type User = users.UserSchema;
 export type AuthResponse = auth.LoginResponse;
 export type CreateUserPayload = users.CreateBody;
 export type UpdateUserPayload = users.UpdateBody;
+export type UserWithNetCount = users.ListResponse['users'][number];
 export type Net = nets.GetResponse['net'];
 export type NetListItem = nets.ListResponse['nets'][number];
 export type Checkin = checkins.CheckinSchema;

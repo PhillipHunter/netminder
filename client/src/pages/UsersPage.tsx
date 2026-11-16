@@ -11,7 +11,7 @@ import {
 
 import type {
     UpdateUserPayload,
-    User
+    UserWithNetCount
 } from '../api';
 import {
     createUser,
@@ -39,21 +39,21 @@ interface CredentialNotice {
 
 export function UsersPage() {
     const { user: currentUser, checkAuth } = useAuth();
-    const [users, setUsers] = useState<User[]>([]);
+    const [users, setUsers] = useState<UserWithNetCount[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [credentialNotice, setCredentialNotice] = useState<CredentialNotice | null>(null);
     const [credentialCopyState, setCredentialCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
     const [resettingUserId, setResettingUserId] = useState<number | null>(null);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
-    const [resetTargetUser, setResetTargetUser] = useState<User | null>(null);
+    const [resetTargetUser, setResetTargetUser] = useState<UserWithNetCount | null>(null);
     const [resetError, setResetError] = useState<string | null>(null);
 
     // Modal states
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [selectedUser, setSelectedUser] = useState<User | null>(null);
+    const [selectedUser, setSelectedUser] = useState<UserWithNetCount | null>(null);
 
     // Form states
     const [formLoading, setFormLoading] = useState(false);
@@ -197,7 +197,7 @@ export function UsersPage() {
         }
     };
 
-    const openResetModal = (user: User) => {
+    const openResetModal = (user: UserWithNetCount) => {
         setResetTargetUser(user);
         setResetError(null);
         setIsResetModalOpen(true);
@@ -237,14 +237,14 @@ export function UsersPage() {
     };
 
     // Open edit modal
-    const openEditModal = (user: User) => {
+    const openEditModal = (user: UserWithNetCount) => {
         setSelectedUser(user);
         setFormError(null);
         setIsEditModalOpen(true);
     };
 
     // Open delete modal
-    const openDeleteModal = (user: User) => {
+    const openDeleteModal = (user: UserWithNetCount) => {
         if (user.is_admin) {
             return;
         }
@@ -648,6 +648,15 @@ export function UsersPage() {
                             {' '}
                             <strong className='text-slate-100'>{selectedUser.username}</strong>
                             ?
+                        </p>
+
+                        <p className='text-sm text-slate-400'>
+                            {selectedUser.private_net_count > 0 && (
+                                <>
+                                    {`This user's ${selectedUser.private_net_count} private ${selectedUser.private_net_count === 1 ? 'net' : 'nets'} will be permanently deleted. `}
+                                </>
+                            )}
+                            Their shared nets will be transferred to you.
                         </p>
 
                         {currentUser?.id === selectedUser.id && (
