@@ -9,6 +9,7 @@ import {
     findNetById
 } from '@netminder/dal';
 
+import type { AuthUser } from '../auth/middleware';
 import {
     errorResponse,
     type ErrorResponse
@@ -71,13 +72,14 @@ interface CreateContext {
     params: CreateParams;
     body: CreateBody;
     set: Context['set'];
+    user?: AuthUser | null;
 }
 
 function parseNetId(params: CreateParams): number | null {
     return parsePositiveInt(params.id);
 }
 
-export const createHandler = async ({ params, body, set }: CreateContext): Promise<CreateResponse | ErrorResponse> => {
+export const createHandler = async ({ params, body, set, user }: CreateContext): Promise<CreateResponse | ErrorResponse> => {
     const netId = parseNetId(params);
     if (netId === null) {
         set.status = 400;
@@ -122,7 +124,7 @@ export const createHandler = async ({ params, body, set }: CreateContext): Promi
 
     try {
         const normalizedMobility = body.mobility ? normalizeMobility(body.mobility) : undefined;
-        const result = await createCheckinWithMeta(netId, {
+        const result = await createCheckinWithMeta(netId, user?.userId ?? null, {
             callsign: body.callsign,
             mobility: normalizedMobility,
             staying: body.staying,

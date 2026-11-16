@@ -6,6 +6,7 @@ import {
 
 import { getStationStats } from '@netminder/dal';
 
+import type { AuthUser } from '../auth/middleware';
 import { normalizeMobility } from '../checkins/schema';
 import {
     errorResponse,
@@ -43,11 +44,13 @@ export type StatsResponse = Static<typeof statsContract.response[200]>;
 interface StatsContext {
     params: StatsParams;
     set: Context['set'];
+    user?: AuthUser | null;
 }
 
 export const statsHandler = ({
     params,
-    set
+    set,
+    user
 }: StatsContext): StatsResponse | ErrorResponse => {
     const decoded = decodeCallsignParam(params.callsign);
     if (!decoded) {
@@ -62,7 +65,7 @@ export const statsHandler = ({
 
     try {
         const normalized = normalizeCallsignValue(decoded);
-        const stats = getStationStats(normalized);
+        const stats = getStationStats(normalized, user?.userId ?? null);
 
         if (!stats) {
             set.status = 404;

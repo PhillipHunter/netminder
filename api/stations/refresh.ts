@@ -10,6 +10,7 @@ import {
     refreshStationQRZ
 } from '@netminder/dal';
 
+import type { AuthUser } from '../auth/middleware';
 import {
     errorResponse,
     type ErrorResponse
@@ -47,11 +48,13 @@ export type RefreshResponse = Static<typeof refreshContract.response[200]>;
 interface RefreshContext {
     params: RefreshParams;
     set: Context['set'];
+    user?: AuthUser | null;
 }
 
 export const refreshHandler = async ({
     params,
-    set
+    set,
+    user
 }: RefreshContext): Promise<RefreshResponse | ErrorResponse> => {
     const decoded = decodeCallsignParam(params.callsign);
     if (!decoded) {
@@ -64,7 +67,7 @@ export const refreshHandler = async ({
         };
     }
 
-    if (!isQRZConfigured()) {
+    if (!isQRZConfigured(user?.userId ?? null)) {
         set.status = 400;
         return {
             error: {
@@ -76,7 +79,7 @@ export const refreshHandler = async ({
 
     try {
         const normalized = normalizeCallsignValue(decoded);
-        const updated = await refreshStationQRZ(normalized);
+        const updated = await refreshStationQRZ(normalized, user?.userId ?? null);
         if (!updated) {
             set.status = 404;
             return {

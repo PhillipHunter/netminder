@@ -43,7 +43,7 @@ export interface StationStatsSummary {
     }[];
 }
 
-export function getStationStats(callsign: string): StationStatsSummary | null {
+export function getStationStats(callsign: string, userId: number | null): StationStatsSummary | null {
     const station = findStationByCallsign(callsign);
     if (!station) {
         return null;
@@ -87,7 +87,7 @@ export function getStationStats(callsign: string): StationStatsSummary | null {
         first_seen_at: stats?.first_seen_at ?? null,
         last_seen_at: stats?.last_seen_at ?? null,
         total_checkins: stats?.total_checkins ?? 0,
-        qrz_enabled: isQRZConfigured(),
+        qrz_enabled: isQRZConfigured(userId),
         recent: recentRows.map(row => ({
             checkin_id: row.checkin_id,
             net_id: row.net_id,

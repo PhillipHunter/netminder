@@ -189,7 +189,30 @@ const MIGRATIONS: Migration[] = [
             }
         }
     },
-    pendingNetSupportMigration
+    pendingNetSupportMigration,
+    {
+        id: '20261116_user_qrz_credentials',
+        name: 'Add per-user QRZ credentials and keep existing global credentials in global mode',
+        run: (db) => {
+            db.run(`
+                CREATE TABLE IF NOT EXISTS user_qrz_credentials (
+                  user_id INTEGER PRIMARY KEY,
+                  username TEXT NOT NULL,
+                  password TEXT NOT NULL,
+                  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                )
+            `);
+
+            db.run(`
+                INSERT INTO settings (key, value)
+                SELECT 'qrz_credential_mode', 'global'
+                WHERE EXISTS (SELECT 1 FROM settings WHERE key = 'qrz_username')
+                  AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'qrz_credential_mode')
+            `);
+        }
+    }
 ];
 
 /**
