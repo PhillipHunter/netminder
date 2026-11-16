@@ -109,6 +109,18 @@ interface Banners {
     success: string | null;
 }
 
+function SectionDivider({ label, note }: { label: string; note?: string }) {
+    return (
+        <div className='flex items-center gap-3'>
+            <span className='text-xs font-semibold uppercase tracking-[0.15em] text-slate-400'>
+                {label}
+                {note && <span className='ml-2 font-normal text-slate-500'>{note}</span>}
+            </span>
+            <div className='h-px flex-1 bg-slate-700/70' />
+        </div>
+    );
+}
+
 function StatusBanners({ error, success }: Banners) {
     return (
         <>
@@ -240,13 +252,15 @@ function MyQrzSection({ account, onChanged }: { account: AccountQrzStatus; onCha
     return (
         <section className={SECTION_CLASS}>
             <h2 className='text-lg font-semibold text-slate-100'>My QRZ Credentials</h2>
-            <p className='mt-1 mb-6 text-sm text-slate-400'>
-                Your own QRZ account is used for your callsign lookups. Passwords are encrypted at rest and never
-                displayed once saved.
-            </p>
+            {!isGlobal && (
+                <p className='mt-1 mb-6 text-sm text-slate-400'>
+                    Your own QRZ account is used for your callsign lookups. Passwords are encrypted at rest and never
+                    displayed once saved.
+                </p>
+            )}
 
             {isGlobal ? (
-                <p className='text-sm text-slate-300'>Lookups use the organization&apos;s QRZ account.</p>
+                <p className='mt-1 text-sm text-slate-300'>Lookups use the organization&apos;s QRZ account.</p>
             ) : (
                 <div className='space-y-6'>
                     <StatusBanners error={error} success={success} />
@@ -587,6 +601,8 @@ export function SettingsPage() {
                             </div>
                         )}
 
+                        {isAdmin && account && <SectionDivider label='Your settings' />}
+
                         {account && (
                             <MyQrzSection
                                 key={account.mode}
@@ -597,6 +613,7 @@ export function SettingsPage() {
 
                         {isAdmin && account && (
                             <>
+                                <SectionDivider label='Organization settings' note='Admins only' />
                                 <ModeSection mode={account.mode} onChanged={loadAccount} />
                                 <GlobalQrzSection mode={account.mode} />
                             </>
