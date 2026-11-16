@@ -30,7 +30,7 @@ export const checkinSchema = t.Object({
     mobility: mobilitySchema,
     staying: t.Boolean({ description: 'True when the station is staying for the remainder of the net' }),
     called_back: t.Boolean({ description: 'Indicates whether the station has been called back by net control' }),
-    topic_answer: t.Nullable(t.String({ description: 'Response recorded for the current net topic question' })),
+    topic_answer: t.Nullable(t.String({ description: 'Comments recorded for the station check-in' })),
     operator_notes: t.Nullable(t.String({ description: 'Internal notes added by operators for this checkin' }))
 }, { description: 'Checkin details associated with a net participant' });
 

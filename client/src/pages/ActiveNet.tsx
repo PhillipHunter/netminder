@@ -356,7 +356,7 @@ export function ActiveNet() {
             'Name',
             'Mobility',
             'Staying',
-            'Topic Answer',
+            'Comments',
             'Called Back'
         ];
 
@@ -727,7 +727,7 @@ export function ActiveNet() {
                                             Status
                                         </th>
                                         <th className='px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400'>
-                                            Topic Answer
+                                            Comments
                                         </th>
                                         <th className='px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400'>
                                             Called Back
