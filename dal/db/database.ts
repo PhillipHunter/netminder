@@ -6,7 +6,10 @@ import {
 import { dirname } from 'node:path';
 
 import { runMigrations } from './migrations';
-import { SCHEMA_STATEMENTS } from './schema';
+import {
+    NETS_CREATED_BY_INDEX,
+    SCHEMA_STATEMENTS
+} from './schema';
 import { TypedDatabase } from './wrapper';
 
 const DATABASE_PATH = process.env.DATABASE_PATH ?? 'data/netminder.sqlite3';
@@ -60,6 +63,8 @@ export function initDatabase(): void {
     } else {
         console.log('Fresh database detected, skipping migrations on first boot.');
     }
+
+    db.run(NETS_CREATED_BY_INDEX);
 }
 
 export function closeDatabase(): void {

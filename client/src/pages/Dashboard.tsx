@@ -11,7 +11,8 @@ import type { NetListItem } from '../api';
 import {
     createNet,
     deleteNet,
-    fetchNets
+    fetchNets,
+    isNotFoundError
 } from '../api';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
@@ -30,6 +31,7 @@ export const Dashboard = () => {
     const [newNetTopic, setNewNetTopic] = useState('');
     const [isCreating, setIsCreating] = useState(false);
     const [endOtherActiveNets, setEndOtherActiveNets] = useState(false);
+    const [sharedNet, setSharedNet] = useState(false);
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(0);
@@ -50,22 +52,30 @@ export const Dashboard = () => {
     const pageEnd = currentPage * pageSize + nets.length;
     const totalDisplay = hasExactTotal ? totalNets : (hasNextPage ? `${pageEnd}+` : totalNets);
 
-    const loadNets = useCallback(async () => {
-        if (isFetchingRef.current) {
+    interface LoadOptions {
+        background?: boolean;
+        isStopped?: () => boolean;
+    }
+
+    const loadNets = useCallback(async ({ background = false, isStopped = () => false }: LoadOptions = {}) => {
+        if (background && isFetchingRef.current) {
             return;
         }
 
         try {
             isFetchingRef.current = true;
-            setLoading(true);
-            setError(null);
+            if (!background) {
+                setLoading(true);
+                setError(null);
+            }
             const offset = currentPage * pageSize;
             const result = await fetchNets(pageSize, offset);
+            if (isStopped()) {
+                return;
+            }
             const fetchedNets = result.nets;
 
             if (fetchedNets.length === 0 && currentPage > 0) {
-                isFetchingRef.current = false;
-                setLoading(false);
                 setCurrentPage(p => Math.max(0, p - 1));
                 return;
             }
@@ -79,15 +89,42 @@ export const Dashboard = () => {
             setTotalNets(total);
             setHasExactTotal(metaHasTotal);
         } catch (err) {
-            setError(resolveErrorMessage(err, 'An error occurred'));
+            if (isStopped()) {
+                return;
+            }
+            if (background) {
+                console.error('Error refreshing nets:', err);
+            } else {
+                setError(resolveErrorMessage(err, 'An error occurred'));
+            }
         } finally {
-            setLoading(false);
             isFetchingRef.current = false;
+            if (!background && !isStopped()) {
+                setLoading(false);
+            }
         }
     }, [currentPage, pageSize]);
 
     useEffect(() => {
-        void loadNets();
+        const polling = { stopped: false };
+        const isStopped = () => polling.stopped;
+        const refresh = () => { void loadNets({ background: true, isStopped }); };
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                refresh();
+            }
+        };
+
+        void loadNets({ isStopped });
+
+        // Keep the list current as nets are shared, hidden, or ended elsewhere
+        const interval = setInterval(refresh, 10000);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => {
+            polling.stopped = true;
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
     }, [loadNets]);
 
     const handleCreateNet = async () => {
@@ -95,7 +132,8 @@ export const Dashboard = () => {
             setIsCreating(true);
             const payload = {
                 topic: newNetTopic.trim() || undefined,
-                end_active: endOtherActiveNets || undefined
+                end_active: endOtherActiveNets || undefined,
+                shared: sharedNet || undefined
             };
             const newNet = await createNet(payload);
 
@@ -108,6 +146,7 @@ export const Dashboard = () => {
             setIsModalOpen(false);
             setNewNetTopic('');
             setEndOtherActiveNets(false);
+            setSharedNet(false);
         }
     };
 
@@ -125,6 +164,7 @@ export const Dashboard = () => {
         setIsModalOpen(false);
         setNewNetTopic('');
         setEndOtherActiveNets(false);
+        setSharedNet(false);
     };
 
     const handleDeleteNet = async () => {
@@ -139,6 +179,11 @@ export const Dashboard = () => {
             await loadNets();
             setNetToDelete(null);
         } catch (err) {
+            if (isNotFoundError(err)) {
+                setNetToDelete(null);
+                void loadNets({ background: true });
+                return;
+            }
             setError(resolveErrorMessage(err, 'Failed to delete net'));
         } finally {
             setIsDeleting(false);
@@ -293,6 +338,11 @@ export const Dashboard = () => {
                                                 </td>
                                                 <td className='px-4 py-3 text-sm text-slate-300'>
                                                     {net.topic ?? <span className='text-slate-500 italic'>No topic</span>}
+                                                    {net.shared && (
+                                                        <span className='ml-2 inline-flex items-center rounded-full border border-sky-500/30 bg-gradient-to-r from-sky-500/15 to-indigo-500/15 px-2 py-1 text-xs font-medium text-sky-200'>
+                                                            Shared
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className='whitespace-nowrap px-4 py-3 text-sm'>
                                                     {net.started_at === null ? (
@@ -327,17 +377,19 @@ export const Dashboard = () => {
                                                 </td>
                                                 <td className='whitespace-nowrap px-4 py-3 text-sm'>
                                                     <div className='flex gap-2'>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setNetToDelete(net);
-                                                            }}
-                                                            className='rounded p-1.5 text-red-400 hover:text-red-300 hover:bg-red-950/30 transition'
-                                                            title='Delete net'
-                                                            aria-label='Delete net'
-                                                        >
-                                                            <FaTrash size={14} />
-                                                        </button>
+                                                        {net.is_owner && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setNetToDelete(net);
+                                                                }}
+                                                                className='rounded p-1.5 text-red-400 hover:text-red-300 hover:bg-red-950/30 transition'
+                                                                title='Delete net'
+                                                                aria-label='Delete net'
+                                                            >
+                                                                <FaTrash size={14} />
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -407,7 +459,7 @@ export const Dashboard = () => {
 
                     <div
                         className='mb-6 flex items-start gap-3 rounded-lg border border-slate-700/60 bg-slate-900/60 px-4 py-3'
-                        title='When enabled, any other nets still marked as in progress will be ended before this new net is created.'
+                        title='When enabled, any of your other nets still marked as in progress will be ended before this new net is created.'
                     >
                         <input
                             id='end-other-nets'
@@ -421,7 +473,28 @@ export const Dashboard = () => {
                                 End other active nets
                             </div>
                             <p className='mt-1 text-xs text-slate-400'>
-                                Automatically closes any nets that are still in progress before creating this one.
+                                Automatically closes any of your nets that are still in progress before creating this one.
+                            </p>
+                        </label>
+                    </div>
+
+                    <div
+                        className='mb-6 flex items-start gap-3 rounded-lg border border-slate-700/60 bg-slate-900/60 px-4 py-3'
+                        title='When enabled, every user can view this net and add check-ins. Only you can run it.'
+                    >
+                        <input
+                            id='shared-net'
+                            type='checkbox'
+                            checked={sharedNet}
+                            onChange={(e) => { setSharedNet(e.target.checked); }}
+                            className='mt-1 h-4 w-4 rounded border-slate-700 bg-slate-900 text-sky-500 focus:ring-2 focus:ring-sky-500 focus:ring-offset-0'
+                        />
+                        <label htmlFor='shared-net' className='flex-1 cursor-pointer select-none'>
+                            <div className='text-sm font-medium text-slate-200'>
+                                Shared net
+                            </div>
+                            <p className='mt-1 text-xs text-slate-400'>
+                                All users can view this net and contribute check-ins. Leave off to keep it private to you.
                             </p>
                         </label>
                     </div>

@@ -19,6 +19,8 @@ export interface Net {
     formal_ended_at: string | null;
     topic: string | null;
     created_at: string;
+    created_by: number | null;
+    shared: number;
 }
 
 export interface Station {

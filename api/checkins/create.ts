@@ -6,11 +6,13 @@ import {
 
 import {
     createCheckinWithMeta,
-    findNetById
+    findVisibleNet
 } from '@netminder/dal';
 
+import type { AuthUser } from '../auth/middleware';
 import {
     errorResponse,
+    unauthorizedResponse,
     type ErrorResponse
 } from '../common/errors';
 import { parsePositiveInt } from '../common/validation';
@@ -59,6 +61,7 @@ export const createContract = {
             meta: checkinMetaSchema
         }, { description: 'Newly created checkin and associated station metadata' }),
         400: errorResponse,
+        404: errorResponse,
         500: errorResponse
     }
 } as const;
@@ -70,6 +73,7 @@ export type CreateResponse = Static<typeof createContract.response[201]>;
 interface CreateContext {
     params: CreateParams;
     body: CreateBody;
+    user?: AuthUser | null;
     set: Context['set'];
 }
 
@@ -77,7 +81,12 @@ function parseNetId(params: CreateParams): number | null {
     return parsePositiveInt(params.id);
 }
 
-export const createHandler = async ({ params, body, set }: CreateContext): Promise<CreateResponse | ErrorResponse> => {
+export const createHandler = async ({ params, body, user, set }: CreateContext): Promise<CreateResponse | ErrorResponse> => {
+    if (!user) {
+        set.status = 401;
+        return unauthorizedResponse();
+    }
+
     const netId = parseNetId(params);
     if (netId === null) {
         set.status = 400;
@@ -89,7 +98,7 @@ export const createHandler = async ({ params, body, set }: CreateContext): Promi
         };
     }
 
-    const net = findNetById(netId);
+    const net = findVisibleNet(netId, user.userId);
     if (!net) {
         set.status = 404;
         return {

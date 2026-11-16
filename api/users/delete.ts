@@ -9,8 +9,10 @@ import {
     findUserById
 } from '@netminder/dal';
 
+import type { AuthUser } from '../auth/middleware';
 import {
     errorResponse,
+    unauthorizedResponse,
     type ErrorResponse
 } from '../common/errors';
 import { parsePositiveInt } from '../common/validation';
@@ -24,7 +26,7 @@ export const deleteContract = {
     }, { description: 'Route parameters identifying the target user' }),
     detail: {
         summary: 'Delete user',
-        description: 'Removes a user account. Safeguards prevent deleting the last or current admin.',
+        description: 'Removes a user account, deleting the user private nets and transferring their shared nets to the acting admin. Safeguards prevent deleting the last or current admin.',
         tags: ['Users'] as string[]
     },
     response: {
@@ -38,13 +40,20 @@ export type DeleteParams = Static<typeof deleteContract.params>;
 export type DeleteResponse = Static<typeof deleteContract.response[204]>;
 interface DeleteContext {
     params: DeleteParams;
+    user?: AuthUser | null;
     set: Context['set'];
 }
 
 export const deleteHandler = ({
     params,
+    user,
     set
 }: DeleteContext): ErrorResponse | undefined => {
+    if (!user) {
+        set.status = 401;
+        return unauthorizedResponse();
+    }
+
     const id = parsePositiveInt(params.id);
 
     if (id === null) {
@@ -78,7 +87,7 @@ export const deleteHandler = ({
         };
     }
 
-    const deleted = deleteUserRecord(id);
+    const deleted = deleteUserRecord(id, user.userId);
     if (!deleted) {
         set.status = 404;
         return {

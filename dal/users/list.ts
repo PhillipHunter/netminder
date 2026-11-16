@@ -89,6 +89,13 @@ const SELECT_USER_WITH_PASSWORD_BY_ID_SQL = `
     WHERE id = ?
 `;
 
+const COUNT_PRIVATE_NETS_SQL = `
+    SELECT COUNT(*) as count
+    FROM nets
+    WHERE created_by = ?
+      AND shared = 0
+`;
+
 const COUNT_USERS_SQL = `
     SELECT COUNT(*) as count
     FROM users
@@ -187,5 +194,10 @@ export function countAdmins(): number {
 
 export function countUsers(): number {
     const row = db.prepare<CountRow>(COUNT_USERS_SQL).get();
+    return row?.count ?? 0;
+}
+
+export function countPrivateNetsOwnedBy(userId: number): number {
+    const row = db.prepare<CountRow>(COUNT_PRIVATE_NETS_SQL).get(userId);
     return row?.count ?? 0;
 }

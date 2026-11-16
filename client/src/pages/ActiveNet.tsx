@@ -10,7 +10,10 @@ import {
     FaStop,
     FaSuitcase
 } from 'react-icons/fa';
-import { useParams } from 'react-router-dom';
+import {
+    Link,
+    useParams
+} from 'react-router-dom';
 
 import type {
     Checkin,
@@ -23,6 +26,7 @@ import {
     endNetFormal,
     fetchCheckins,
     fetchNet,
+    isNotFoundError,
     restartNet,
     resumeNetFormal,
     startNet,
@@ -58,6 +62,7 @@ export function ActiveNet() {
     const [checkins, setCheckins] = useState<Checkin[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [isUnavailable, setIsUnavailable] = useState(false);
 
     // History panel
     const [historyPanelOpen, setHistoryPanelOpen] = useState(false);
@@ -77,6 +82,12 @@ export function ActiveNet() {
         if (!id)
             return;
 
+        const load = { cancelled: false };
+        const isCancelled = () => load.cancelled;
+
+        setIsUnavailable(false);
+        setError(null);
+
         async function loadNet() {
             try {
                 setIsLoading(true);
@@ -88,41 +99,82 @@ export function ActiveNet() {
                 }
 
                 const details = await fetchNet(netId);
+                if (isCancelled())
+                    return;
                 setNet(details);
             } catch (err) {
+                if (isCancelled())
+                    return;
+                if (isNotFoundError(err)) {
+                    setIsUnavailable(true);
+                    return;
+                }
                 console.error('Error fetching net:', err);
                 setError('Failed to load net details');
             } finally {
-                setIsLoading(false);
+                if (!isCancelled())
+                    setIsLoading(false);
             }
         }
 
         void loadNet();
+        return () => { load.cancelled = true; };
     }, [id]);
 
-    // Fetch checkins
+    // Refresh net details and checkins
     useEffect(() => {
         if (!id)
             return;
 
-        async function loadCheckins() {
-            try {
-                const netId = Number(id);
-                if (Number.isNaN(netId))
-                    return;
-                const response = await fetchCheckins(netId);
-                const sorted = [...response].sort((a, b) => new Date(a.time_entered).getTime() - new Date(b.time_entered).getTime());
+        const netId = Number(id);
+        if (Number.isNaN(netId))
+            return;
+
+        const polling = { stopped: false };
+        const isStopped = () => polling.stopped;
+
+        async function refresh() {
+            const [netResult, checkinsResult] = await Promise.allSettled([
+                fetchNet(netId),
+                fetchCheckins(netId)
+            ]);
+
+            if (isStopped())
+                return;
+
+            const notFound = [netResult, checkinsResult].some(
+                result => result.status === 'rejected' && isNotFoundError(result.reason)
+            );
+            if (notFound) {
+                polling.stopped = true;
+                setIsUnavailable(true);
+                setNet(null);
+                setCheckins([]);
+                return;
+            }
+
+            if (netResult.status === 'fulfilled') {
+                setNet(netResult.value);
+            } else {
+                console.error('Error fetching net:', netResult.reason);
+            }
+
+            if (checkinsResult.status === 'fulfilled') {
+                const sorted = [...checkinsResult.value].sort((a, b) => new Date(a.time_entered).getTime() - new Date(b.time_entered).getTime());
                 setCheckins(sorted);
-            } catch (err) {
-                console.error('Error fetching checkins:', err);
+            } else {
+                console.error('Error fetching checkins:', checkinsResult.reason);
             }
         }
 
-        void loadCheckins();
+        void refresh();
 
         // Poll for updates every 10 seconds
-        const interval = setInterval(() => void loadCheckins(), 10000);
-        return () => { clearInterval(interval); };
+        const interval = setInterval(() => void refresh(), 10000);
+        return () => {
+            polling.stopped = true;
+            clearInterval(interval);
+        };
     }, [id]);
 
     // Calculate summary counts
@@ -343,6 +395,23 @@ export function ActiveNet() {
         }
     };
 
+    const handleSharedToggle = async (nextShared: boolean) => {
+        if (!id)
+            return;
+
+        try {
+            const netId = Number(id);
+            if (Number.isNaN(netId))
+                return;
+
+            const updated = await updateNet(netId, { shared: nextShared });
+            setNet(updated);
+        } catch (err) {
+            console.error('Error updating shared setting:', err);
+            alert(resolveErrorMessage(err, 'Failed to update shared setting'));
+        }
+    };
+
     const handleExportCSV = () => {
         if (checkins.length === 0) {
             alert('No check-ins to export');
@@ -505,6 +574,22 @@ export function ActiveNet() {
         );
     }
 
+    if (isUnavailable) {
+        return (
+            <div className='flex min-h-screen items-center justify-center'>
+                <div className='rounded-lg border border-slate-700/60 bg-slate-900/60 p-6 text-center text-slate-300'>
+                    <p>This net is no longer available to you.</p>
+                    <Link
+                        to='/'
+                        className='mt-4 inline-block rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-400'
+                    >
+                        Back to Dashboard
+                    </Link>
+                </div>
+            </div>
+        );
+    }
+
     if (error || !net) {
         return (
             <div className='flex min-h-screen items-center justify-center'>
@@ -601,17 +686,43 @@ export function ActiveNet() {
                     <div className='mt-6 flex flex-wrap items-start justify-between gap-4'>
                         <div className='min-w-[240px] flex-1'>
                             <div className='text-sm font-medium text-slate-400'>Topic</div>
-                            <EditableText
-                                value={net.topic ?? null}
-                                onSave={handleNetTopicSave}
-                                placeholder='Click to add topic'
-                                className='mt-1'
-                                textClassName='w-full text-left text-base text-slate-300 hover:text-slate-100'
-                                inputProps={{ className: 'text-base' }}
-                            />
+                            {net.is_owner ? (
+                                <EditableText
+                                    value={net.topic ?? null}
+                                    onSave={handleNetTopicSave}
+                                    placeholder='Click to add topic'
+                                    className='mt-1'
+                                    textClassName='w-full text-left text-base text-slate-300 hover:text-slate-100'
+                                    inputProps={{ className: 'text-base' }}
+                                />
+                            ) : (
+                                <div className='mt-1 text-base text-slate-300'>
+                                    {net.topic ?? <span className='text-slate-500 italic'>No topic</span>}
+                                </div>
+                            )}
+                            {net.is_owner ? (
+                                <label
+                                    htmlFor='net-shared'
+                                    className='mt-3 inline-flex cursor-pointer select-none items-center gap-2 text-sm text-slate-300'
+                                    title='When enabled, all users can view this net and add check-ins.'
+                                >
+                                    <input
+                                        id='net-shared'
+                                        type='checkbox'
+                                        checked={net.shared}
+                                        onChange={(e) => { void handleSharedToggle(e.target.checked); }}
+                                        className='h-4 w-4 rounded border-slate-700 bg-slate-900 text-sky-500 focus:ring-2 focus:ring-sky-500 focus:ring-offset-0'
+                                    />
+                                    Shared
+                                </label>
+                            ) : (
+                                <span className='mt-3 inline-flex items-center rounded-full border border-sky-500/30 bg-gradient-to-r from-sky-500/15 to-indigo-500/15 px-2 py-1 text-xs font-medium text-sky-200'>
+                                    Shared
+                                </span>
+                            )}
                         </div>
                         <div className='mt-4 flex w-full flex-wrap justify-end gap-3 sm:mt-0 sm:w-auto'>
-                            {isPendingNet ? (
+                            {!net.is_owner ? null : isPendingNet ? (
                                 <button
                                     onClick={() => { void handleStartPendingNet(); }}
                                     className='flex items-center gap-2 rounded-lg border border-sky-500/50 bg-gradient-to-r from-sky-500/20 to-cyan-500/10 px-4 py-2 text-sm font-semibold text-sky-200 shadow-md shadow-sky-500/10 transition-all duration-200 hover:border-sky-400 hover:shadow-lg hover:shadow-sky-500/20'
@@ -670,8 +781,10 @@ export function ActiveNet() {
                     {checkinsDisabled && (
                         <p className='mb-3 text-sm text-slate-400'>
                             {isPendingNet
-                                ? 'Start the net to begin accepting check-ins.'
-                                : 'This net has ended. Restart the net to log additional activity.'}
+                                ? (net.is_owner ? 'Start the net to begin accepting check-ins.' : 'The net creator has not started this net yet.')
+                                : net.is_owner
+                                    ? 'This net has ended. Restart the net to log additional activity.'
+                                    : 'This net has ended. Only the net creator can restart it.'}
                         </p>
                     )}
                     <CallsignInput
