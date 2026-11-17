@@ -41,6 +41,7 @@ export function StationHistoryPanel({
     const navigate = useNavigate();
     const { mobilityEnabled } = useAppConfig();
     const [stats, setStats] = useState<StationStats | null>(null);
+    const [scope, setScope] = useState<'own' | 'visible'>('own');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isSyncingQrz, setIsSyncingQrz] = useState(false);
@@ -48,12 +49,15 @@ export function StationHistoryPanel({
     const { text: headerName, fromQrz: headerNameFromQrz } = parseDisplayName(stats?.display_name ?? null);
     const { text: headerLocation, fromQrz: headerLocationFromQrz } = parseDisplayName(stats?.location_display ?? null);
 
-    const fetchStats = useCallback(async (targetCallsign: string) => {
+    const fetchStats = useCallback(async (targetCallsign: string, resetScope = false) => {
         try {
             setIsLoading(true);
             setError(null);
             setSyncError(null);
             const statsResponse = await fetchStationStatsApi(targetCallsign);
+            if (resetScope) {
+                setScope(statsResponse.own.total_checkins > 0 ? 'own' : 'visible');
+            }
             setStats(statsResponse);
         } catch (err) {
             console.error('Error fetching station stats:', err);
@@ -68,7 +72,7 @@ export function StationHistoryPanel({
             return;
         }
 
-        void fetchStats(callsign);
+        void fetchStats(callsign, true);
     }, [callsign, fetchStats, isOpen]);
 
     useEffect(() => {
@@ -77,6 +81,8 @@ export function StationHistoryPanel({
             setSyncError(null);
         }
     }, [isOpen]);
+
+    const scopeStats = stats?.[scope];
 
     const formatDate = (timestamp: string) => {
         const date = new Date(timestamp);
@@ -363,13 +369,35 @@ export function StationHistoryPanel({
                         </div>
                     )}
 
-                    {!isLoading && !error && stats && (
+                    {!isLoading && !error && stats && scopeStats && (
                         <>
+                            {/* Scope Toggle */}
+                            <div className='mb-4 flex gap-1 rounded-lg border border-slate-800 bg-slate-950/50 p-1'>
+                                {([
+                                    ['own', 'Your nets'],
+                                    ['visible', 'All visible nets']
+                                ] as const).map(([value, label]) => (
+                                    <button
+                                        key={value}
+                                        type='button'
+                                        onClick={() => { setScope(value); }}
+                                        aria-pressed={scope === value}
+                                        className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                                            scope === value
+                                                ? 'bg-indigo-500/20 text-indigo-200'
+                                                : 'text-slate-400 hover:text-slate-200'
+                                        }`}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+
                             {/* Summary Stats */}
                             <div className='grid grid-cols-2 gap-4'>
                                 <div className='rounded-lg border border-slate-800 bg-slate-950/50 p-4'>
                                     <div className='text-2xl font-bold text-slate-100'>
-                                        {stats.total_checkins}
+                                        {scopeStats.total_checkins}
                                     </div>
                                     <div className='mt-1 text-sm text-slate-400'>
                                         Total Check-ins
@@ -378,7 +406,7 @@ export function StationHistoryPanel({
 
                                 <div className='rounded-lg border border-slate-800 bg-slate-950/50 p-4'>
                                     <div className='text-2xl font-bold text-slate-100'>
-                                        {stats.recent.length}
+                                        {scopeStats.recent.length}
                                     </div>
                                     <div className='mt-1 text-sm text-slate-400'>Recent Nets</div>
                                 </div>
@@ -386,33 +414,33 @@ export function StationHistoryPanel({
 
                             {/* First & Last Seen */}
                             <div className='mt-6 space-y-3'>
-                                {stats.first_seen_at && (
+                                {scopeStats.first_seen_at && (
                                     <div className='flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/50 p-4'>
                                         <div className='text-sm text-slate-400'>First Seen</div>
                                         <div className='font-mono text-sm text-slate-200'>
-                                            {formatDateTime(stats.first_seen_at)}
+                                            {formatDateTime(scopeStats.first_seen_at)}
                                         </div>
                                     </div>
                                 )}
 
-                                {stats.last_seen_at && (
+                                {scopeStats.last_seen_at && (
                                     <div className='flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/50 p-4'>
                                         <div className='text-sm text-slate-400'>Last Seen</div>
                                         <div className='font-mono text-sm text-slate-200'>
-                                            {formatDateTime(stats.last_seen_at)}
+                                            {formatDateTime(scopeStats.last_seen_at)}
                                         </div>
                                     </div>
                                 )}
                             </div>
 
                             {/* Recent Check-ins */}
-                            {stats.recent.length > 0 && (
+                            {scopeStats.recent.length > 0 && (
                                 <div className='mt-6'>
                                     <h3 className='mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400'>
                                         Recent Check-ins
                                     </h3>
                                     <div className='space-y-2'>
-                                        {stats.recent.map(checkin => (
+                                        {scopeStats.recent.map(checkin => (
                                             <div
                                                 key={checkin.checkin_id}
                                                 className='rounded-lg border border-slate-800 bg-slate-950/50 p-4'
@@ -451,9 +479,9 @@ export function StationHistoryPanel({
                                 </div>
                             )}
 
-                            {stats.recent.length === 0 && (
+                            {scopeStats.recent.length === 0 && (
                                 <div className='mt-6 rounded-lg border border-slate-800 bg-slate-950/50 p-8 text-center text-sm text-slate-400'>
-                                    No recent check-ins to display
+                                    {scope === 'own' ? 'No check-ins in your nets yet' : 'No recent check-ins to display'}
                                 </div>
                             )}
                         </>
