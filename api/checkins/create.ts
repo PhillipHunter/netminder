@@ -61,6 +61,7 @@ export const createContract = {
             meta: checkinMetaSchema
         }, { description: 'Newly created checkin and associated station metadata' }),
         400: errorResponse,
+        401: errorResponse,
         404: errorResponse,
         500: errorResponse
     }
@@ -131,7 +132,7 @@ export const createHandler = async ({ params, body, user, set }: CreateContext):
 
     try {
         const normalizedMobility = body.mobility ? normalizeMobility(body.mobility) : undefined;
-        const result = await createCheckinWithMeta(netId, {
+        const result = await createCheckinWithMeta(netId, user.userId, {
             callsign: body.callsign,
             mobility: normalizedMobility,
             staying: body.staying,

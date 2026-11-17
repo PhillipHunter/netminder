@@ -9,7 +9,10 @@ import {
     clearQRZSessionCache,
     verifyQRZCredentials
 } from '@netminder/core';
-import { updateQRZCredentials } from '@netminder/dal';
+import {
+    getQRZCredentialMode,
+    updateQRZCredentials
+} from '@netminder/dal';
 
 import {
     errorResponse,
@@ -89,7 +92,7 @@ export const updateHandler = async ({ body, set }: UpdateContext): Promise<Updat
         clearQRZSessionCache();
 
         const encryptionAvailable = isEncryptionKeyAvailable();
-        return buildStatusResponse(status, encryptionAvailable);
+        return buildStatusResponse(status, getQRZCredentialMode(), encryptionAvailable);
     } catch (unknownError) {
         const error = toError(unknownError);
         if (error instanceof SettingsServiceError) {

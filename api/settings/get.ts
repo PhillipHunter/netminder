@@ -3,7 +3,10 @@ import {
     type Static
 } from 'elysia';
 
-import { getQRZSettingsStatus } from '@netminder/dal';
+import {
+    getQRZCredentialMode,
+    getQRZSettingsStatus
+} from '@netminder/dal';
 
 import {
     errorResponse,
@@ -35,7 +38,7 @@ export const getHandler = ({ set }: GetContext): GetResponse | GetErrorResponse 
     try {
         const status = getQRZSettingsStatus();
         const encryptionAvailable = isEncryptionKeyAvailable();
-        return buildStatusResponse(status, encryptionAvailable);
+        return buildStatusResponse(status, getQRZCredentialMode(), encryptionAvailable);
     } catch (error) {
         console.error('Error fetching QRZ settings:', error);
         set.status = 500;

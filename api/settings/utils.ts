@@ -1,4 +1,7 @@
-import type { QRZSettingsStatus } from '@netminder/dal';
+import type {
+    QRZCredentialMode,
+    QRZSettingsStatus
+} from '@netminder/dal';
 
 import type { QRZStatusResponseSchema } from './schema';
 
@@ -13,10 +16,12 @@ export function isEncryptionKeyAvailable(): boolean {
 
 export function buildStatusResponse(
     status: QRZSettingsStatus,
+    mode: QRZCredentialMode,
     encryptionAvailable: boolean
 ): QRZStatusResponseSchema {
     return {
         settings: {
+            mode,
             username: status.username,
             configured: status.configured,
             updatedAt: status.updatedAt,
