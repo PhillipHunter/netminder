@@ -84,7 +84,7 @@ export function exportCheckinsToCSV(checkins: Checkin[], netInfo: Net): void {
         'Name',
         'Mobility',
         'Staying',
-        'Topic Answer',
+        'Comments',
         'Called Back',
         'Notes'
     ];
