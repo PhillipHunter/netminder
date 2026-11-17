@@ -386,7 +386,7 @@ export const Dashboard = () => {
                                                             }}
                                                             className={
                                                                 net.is_owner
-                                                                    ? 'rounded p-1.5 text-red-400 hover:text-red-300 hover:bg-red-950/30 transition'
+                                                                    ? 'rounded p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-950/30 transition'
                                                                     : 'rounded p-1.5 text-slate-600 opacity-50 cursor-not-allowed'
                                                             }
                                                             title={
