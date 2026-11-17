@@ -75,14 +75,16 @@ function generateFilename(netInfo: Net): string {
  *
  * @param checkins - Array of checkin records to export
  * @param netInfo - Net information for filename generation
+ * @param options - Set includeMobility to false to omit the Mobility column
  */
-export function exportCheckinsToCSV(checkins: Checkin[], netInfo: Net): void {
+export function exportCheckinsToCSV(checkins: Checkin[], netInfo: Net, options: { includeMobility?: boolean } = {}): void {
+    const { includeMobility = true } = options;
     // Define CSV headers
     const headers = [
         'Time',
         'Callsign',
         'Name',
-        'Mobility',
+        ...(includeMobility ? ['Mobility'] : []),
         'Staying',
         'Comments',
         'Called Back',
@@ -95,7 +97,7 @@ export function exportCheckinsToCSV(checkins: Checkin[], netInfo: Net): void {
             escapeCsvField(formatTimestamp(checkin.time_entered)),
             escapeCsvField(checkin.callsign),
             escapeCsvField(checkin.display_name),
-            escapeCsvField(formatMobility(checkin.mobility)),
+            ...(includeMobility ? [escapeCsvField(formatMobility(checkin.mobility))] : []),
             escapeCsvField(checkin.staying ? 'Yes' : 'No'),
             escapeCsvField(checkin.topic_answer),
             escapeCsvField(checkin.called_back ? 'Yes' : 'No'),

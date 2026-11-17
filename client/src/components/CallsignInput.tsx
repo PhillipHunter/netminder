@@ -21,6 +21,7 @@ import {
     fetchStationLookup,
     fetchStations
 } from '../api';
+import { useAppConfig } from '../contexts/AppConfigContext';
 import { parseDisplayName } from '../utils/displayName';
 
 interface CallsignInputProps {
@@ -80,6 +81,7 @@ export function CallsignInput({ onSubmit, disabled, autoFocus }: CallsignInputPr
     const [selectedIndex, setSelectedIndex] = useState(-1);
     const [isLoading, setIsLoading] = useState(false);
     const [isLookupInFlight, setIsLookupInFlight] = useState(false);
+    const { mobilityEnabled } = useAppConfig();
     const [mobility, setMobility] = useState<MobilityType>('neither');
     const [staying, setStaying] = useState(true);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -175,6 +177,8 @@ export function CallsignInput({ onSubmit, disabled, autoFocus }: CallsignInputPr
                 inputRef.current?.focus();
             } else if (key === 'm') {
                 event.preventDefault();
+                if (!mobilityEnabled)
+                    return;
                 setMobility((prev) => {
                     const order: MobilityType[] = ['neither', 'mobile', 'portable'];
                     const currentIndex = order.indexOf(prev);
@@ -202,7 +206,7 @@ export function CallsignInput({ onSubmit, disabled, autoFocus }: CallsignInputPr
 
         window.addEventListener('keydown', handleShortcuts);
         return () => { window.removeEventListener('keydown', handleShortcuts); };
-    }, [disabled]);
+    }, [disabled, mobilityEnabled]);
 
     const applyStationDetails = (station: Station | StationListItem) => {
         const { text: stationName, fromQrz: stationNameFromQrz } = parseDisplayName(
@@ -299,7 +303,7 @@ export function CallsignInput({ onSubmit, disabled, autoFocus }: CallsignInputPr
                 : undefined;
             await onSubmit({
                 callsign: upperCallsign,
-                mobility,
+                mobility: mobilityEnabled ? mobility : 'neither',
                 staying,
                 topicAnswer: trimmedTopic,
                 preferredName: preferredNamePayload,
@@ -655,56 +659,58 @@ export function CallsignInput({ onSubmit, disabled, autoFocus }: CallsignInputPr
                 >
                     {staying ? 'Staying' : 'In & Out'}
                 </button>
-                <div className='flex h-10 flex-shrink-0 items-center gap-1 rounded-md border border-slate-700/70 bg-slate-800/70 px-1 py-1'>
-                    <button
-                        type='button'
-                        onClick={() => { setMobility('neither'); }}
-                        disabled={disabled}
-                        className={`flex h-8 w-8 items-center justify-center rounded-md border border-transparent transition ${
-                            mobility === 'neither'
-                                ? 'bg-sky-500/20 text-sky-300'
-                                : 'text-slate-400 hover:text-slate-200'
-                        } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
-                        aria-label='Set mobility to fixed'
-                        aria-pressed={mobility === 'neither'}
-                        title='Fixed station'
-                        tabIndex={5}
-                    >
-                        <FaHome size={12} />
-                    </button>
-                    <button
-                        type='button'
-                        onClick={() => { setMobility('mobile'); }}
-                        disabled={disabled}
-                        className={`flex h-8 w-8 items-center justify-center rounded-md border border-transparent transition ${
-                            mobility === 'mobile'
-                                ? 'bg-sky-500/20 text-sky-300'
-                                : 'text-slate-400 hover:text-slate-200'
-                        } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
-                        aria-label='Set mobility to mobile'
-                        aria-pressed={mobility === 'mobile'}
-                        title='Mobile'
-                        tabIndex={6}
-                    >
-                        <FaCar size={12} />
-                    </button>
-                    <button
-                        type='button'
-                        onClick={() => { setMobility('portable'); }}
-                        disabled={disabled}
-                        className={`flex h-8 w-8 items-center justify-center rounded-md border border-transparent transition ${
-                            mobility === 'portable'
-                                ? 'bg-sky-500/20 text-sky-300'
-                                : 'text-slate-400 hover:text-slate-200'
-                        } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
-                        aria-label='Set mobility to portable'
-                        aria-pressed={mobility === 'portable'}
-                        title='Portable'
-                        tabIndex={7}
-                    >
-                        <FaSuitcase size={12} />
-                    </button>
-                </div>
+                {mobilityEnabled && (
+                    <div className='flex h-10 flex-shrink-0 items-center gap-1 rounded-md border border-slate-700/70 bg-slate-800/70 px-1 py-1'>
+                        <button
+                            type='button'
+                            onClick={() => { setMobility('neither'); }}
+                            disabled={disabled}
+                            className={`flex h-8 w-8 items-center justify-center rounded-md border border-transparent transition ${
+                                mobility === 'neither'
+                                    ? 'bg-sky-500/20 text-sky-300'
+                                    : 'text-slate-400 hover:text-slate-200'
+                            } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                            aria-label='Set mobility to fixed'
+                            aria-pressed={mobility === 'neither'}
+                            title='Fixed station'
+                            tabIndex={5}
+                        >
+                            <FaHome size={12} />
+                        </button>
+                        <button
+                            type='button'
+                            onClick={() => { setMobility('mobile'); }}
+                            disabled={disabled}
+                            className={`flex h-8 w-8 items-center justify-center rounded-md border border-transparent transition ${
+                                mobility === 'mobile'
+                                    ? 'bg-sky-500/20 text-sky-300'
+                                    : 'text-slate-400 hover:text-slate-200'
+                            } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                            aria-label='Set mobility to mobile'
+                            aria-pressed={mobility === 'mobile'}
+                            title='Mobile'
+                            tabIndex={6}
+                        >
+                            <FaCar size={12} />
+                        </button>
+                        <button
+                            type='button'
+                            onClick={() => { setMobility('portable'); }}
+                            disabled={disabled}
+                            className={`flex h-8 w-8 items-center justify-center rounded-md border border-transparent transition ${
+                                mobility === 'portable'
+                                    ? 'bg-sky-500/20 text-sky-300'
+                                    : 'text-slate-400 hover:text-slate-200'
+                            } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                            aria-label='Set mobility to portable'
+                            aria-pressed={mobility === 'portable'}
+                            title='Portable'
+                            tabIndex={7}
+                        >
+                            <FaSuitcase size={12} />
+                        </button>
+                    </div>
+                )}
                 <button
                     type='button'
                     onClick={() => { submitCurrent(value.trim() ? value : undefined); }}
@@ -722,7 +728,11 @@ export function CallsignInput({ onSubmit, disabled, autoFocus }: CallsignInputPr
             </div>
             <div className='flex items-center gap-1 text-xs text-slate-500'>
                 <PiKeyReturnThin size={14} className='text-slate-400' />
-                <span>Enter to submit. Ctrl+S toggles status, Ctrl+M cycles mobility, Ctrl+N clears entry.</span>
+                <span>
+                    {mobilityEnabled
+                        ? 'Enter to submit. Ctrl+S toggles status, Ctrl+M cycles mobility, Ctrl+N clears entry.'
+                        : 'Enter to submit. Ctrl+S toggles status, Ctrl+N clears entry.'}
+                </span>
             </div>
         </div>
     );

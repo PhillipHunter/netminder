@@ -6,7 +6,8 @@ import {
 
 import {
     createCheckinWithMeta,
-    findVisibleNet
+    findVisibleNet,
+    getMobilityEnabled
 } from '@netminder/dal';
 
 import type { AuthUser } from '../auth/middleware';
@@ -131,7 +132,7 @@ export const createHandler = async ({ params, body, user, set }: CreateContext):
     }
 
     try {
-        const normalizedMobility = body.mobility ? normalizeMobility(body.mobility) : undefined;
+        const normalizedMobility = body.mobility && getMobilityEnabled() ? normalizeMobility(body.mobility) : undefined;
         const result = await createCheckinWithMeta(netId, user.userId, {
             callsign: body.callsign,
             mobility: normalizedMobility,
