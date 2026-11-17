@@ -4,7 +4,10 @@ import {
     type Static
 } from 'elysia';
 
-import { findUserById } from '@netminder/dal';
+import {
+    countPrivateNetsOwnedBy,
+    findUserById
+} from '@netminder/dal';
 
 import {
     errorResponse,
@@ -12,7 +15,7 @@ import {
 } from '../common/errors';
 import { parsePositiveInt } from '../common/validation';
 
-import { userSchema } from './schema';
+import { userWithNetCountSchema } from './schema';
 
 export const getContract = {
     params: t.Object({
@@ -27,7 +30,7 @@ export const getContract = {
         tags: ['Users'] as string[]
     },
     response: {
-        200: t.Object({ user: userSchema }, { description: 'User resource matching the requested identifier' }),
+        200: t.Object({ user: userWithNetCountSchema }, { description: 'User resource matching the requested identifier' }),
         400: errorResponse,
         404: errorResponse
     }
@@ -76,7 +79,8 @@ export const getHandler = ({
             must_change_password: user.must_change_password,
             last_login_at: user.last_login_at,
             created_at: user.created_at,
-            updated_at: user.updated_at
+            updated_at: user.updated_at,
+            private_net_count: countPrivateNetsOwnedBy(user.id)
         }
     };
 };

@@ -3,6 +3,7 @@ import {
     getLocationWithSuffixFromSource
 } from '../checkins/stationHelpers';
 import { db } from '../db';
+import { NET_VISIBLE_SQL } from '../nets/access';
 
 export interface StationListRow {
     callsign: string;
@@ -40,6 +41,7 @@ const LIST_STATIONS_SQL = `
         COALESCE(COUNT(c.id), 0) as total_checkins
     FROM stations s
     LEFT JOIN checkins c ON s.id = c.station_id
+        AND c.net_id IN (SELECT n.id FROM nets n WHERE ${NET_VISIBLE_SQL})
     GROUP BY s.id, s.callsign, s.preferred_name, s.location, s.qrz_data
     ORDER BY s.callsign ASC
     LIMIT ? OFFSET ?
@@ -56,6 +58,7 @@ const SEARCH_STATIONS_SQL = `
         COALESCE(COUNT(c.id), 0) as total_checkins
     FROM stations s
     LEFT JOIN checkins c ON s.id = c.station_id
+        AND c.net_id IN (SELECT n.id FROM nets n WHERE ${NET_VISIBLE_SQL})
     WHERE s.callsign LIKE ?
         OR (s.preferred_name IS NOT NULL AND LOWER(s.preferred_name) LIKE ?)
     GROUP BY s.id, s.callsign, s.preferred_name, s.location, s.qrz_data
@@ -91,19 +94,19 @@ function mapStationRow(row: StationSummaryRow): StationListRow {
     };
 }
 
-export function listStations(limit: number, offset: number): StationListRow[] {
-    const rows = db.prepare<StationSummaryRow>(LIST_STATIONS_SQL).all(limit, offset);
+export function listStations(userId: number, limit: number, offset: number): StationListRow[] {
+    const rows = db.prepare<StationSummaryRow>(LIST_STATIONS_SQL).all(userId, limit, offset);
     return rows.map(mapStationRow);
 }
 
-export function searchStations(query: string, limit: number, offset: number): StationListRow[] {
+export function searchStations(userId: number, query: string, limit: number, offset: number): StationListRow[] {
     const normalizedCallsign = query.toUpperCase();
     const callsignPattern = `${normalizedCallsign}%`;
     const namePattern = `%${query.toLowerCase()}%`;
 
     const rows = db
         .prepare<StationSummaryRow>(SEARCH_STATIONS_SQL)
-        .all(callsignPattern, namePattern, limit, offset);
+        .all(userId, callsignPattern, namePattern, limit, offset);
     return rows.map(mapStationRow);
 }
 

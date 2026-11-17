@@ -8,3 +8,12 @@ export const errorResponse = t.Object({
 });
 
 export type ErrorResponse = typeof errorResponse.static;
+
+export function unauthorizedResponse(): ErrorResponse {
+    return {
+        error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required'
+        }
+    };
+}
