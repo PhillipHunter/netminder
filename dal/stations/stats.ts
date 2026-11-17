@@ -24,16 +24,10 @@ interface StationRecentCheckinRow {
     topic_answer: string | null;
 }
 
-export interface StationStatsSummary {
-    callsign: string;
-    preferred_name: string | null;
-    location: string | null;
-    display_name: string | null;
-    location_display: string | null;
+export interface StationStatsScope {
     first_seen_at: string | null;
     last_seen_at: string | null;
     total_checkins: number;
-    qrz_enabled: boolean;
     recent: {
         checkin_id: number;
         net_id: number;
@@ -44,12 +38,20 @@ export interface StationStatsSummary {
     }[];
 }
 
-export function getStationStats(callsign: string, userId: number): StationStatsSummary | null {
-    const station = findStationByCallsign(callsign);
-    if (!station) {
-        return null;
-    }
+export interface StationStatsSummary {
+    callsign: string;
+    preferred_name: string | null;
+    location: string | null;
+    display_name: string | null;
+    location_display: string | null;
+    qrz_enabled: boolean;
+    own: StationStatsScope;
+    visible: StationStatsScope;
+}
 
+const OWN_NETS_SQL = 'n.created_by = ?';
+
+function getScopeStats(stationId: number, scopeSql: string, userId: number): StationStatsScope {
     const stats = db.prepare<StationStatsAggregateRow>(`
         SELECT
             MIN(c.time_entered) as first_seen_at,
@@ -58,8 +60,8 @@ export function getStationStats(callsign: string, userId: number): StationStatsS
         FROM checkins c
         JOIN nets n ON n.id = c.net_id
         WHERE c.station_id = ?
-          AND ${NET_VISIBLE_SQL}
-    `).get(station.id, userId);
+          AND ${scopeSql}
+    `).get(stationId, userId);
 
     const recentRows = db.prepare<StationRecentCheckinRow>(`
         SELECT
@@ -72,10 +74,31 @@ export function getStationStats(callsign: string, userId: number): StationStatsS
         FROM checkins c
         JOIN nets n ON n.id = c.net_id
         WHERE c.station_id = ?
-          AND ${NET_VISIBLE_SQL}
+          AND ${scopeSql}
         ORDER BY c.time_entered DESC
         LIMIT 10
-    `).all(station.id, userId);
+    `).all(stationId, userId);
+
+    return {
+        first_seen_at: stats?.first_seen_at ?? null,
+        last_seen_at: stats?.last_seen_at ?? null,
+        total_checkins: stats?.total_checkins ?? 0,
+        recent: recentRows.map(row => ({
+            checkin_id: row.checkin_id,
+            net_id: row.net_id,
+            time_entered: row.time_entered,
+            mobility: row.mobility,
+            staying: Boolean(row.staying),
+            topic_answer: row.topic_answer
+        }))
+    };
+}
+
+export function getStationStats(callsign: string, userId: number): StationStatsSummary | null {
+    const station = findStationByCallsign(callsign);
+    if (!station) {
+        return null;
+    }
 
     const source = {
         preferred_name: station.preferred_name,
@@ -89,17 +112,8 @@ export function getStationStats(callsign: string, userId: number): StationStatsS
         location: station.location ?? null,
         display_name: getDisplayNameWithSuffixFromSource(source),
         location_display: getLocationWithSuffixFromSource(source),
-        first_seen_at: stats?.first_seen_at ?? null,
-        last_seen_at: stats?.last_seen_at ?? null,
-        total_checkins: stats?.total_checkins ?? 0,
         qrz_enabled: isQRZConfigured(userId),
-        recent: recentRows.map(row => ({
-            checkin_id: row.checkin_id,
-            net_id: row.net_id,
-            time_entered: row.time_entered,
-            mobility: row.mobility,
-            staying: Boolean(row.staying),
-            topic_answer: row.topic_answer
-        }))
+        own: getScopeStats(station.id, OWN_NETS_SQL, userId),
+        visible: getScopeStats(station.id, NET_VISIBLE_SQL, userId)
     };
 }
