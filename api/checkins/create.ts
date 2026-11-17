@@ -62,6 +62,7 @@ export const createContract = {
             meta: checkinMetaSchema
         }, { description: 'Newly created checkin and associated station metadata' }),
         400: errorResponse,
+        401: errorResponse,
         404: errorResponse,
         500: errorResponse
     }

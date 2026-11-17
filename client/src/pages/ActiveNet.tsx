@@ -65,8 +65,8 @@ export function ActiveNet() {
     const [checkins, setCheckins] = useState<Checkin[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [isUnavailable, setIsUnavailable] = useState(false);
     const [qrzUnavailable, setQrzUnavailable] = useState(false);
+    const [isUnavailable, setIsUnavailable] = useState(false);
 
     // History panel
     const [historyPanelOpen, setHistoryPanelOpen] = useState(false);

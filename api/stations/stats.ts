@@ -35,6 +35,7 @@ export const statsContract = {
     response: {
         200: t.Object({ stats: stationStatsSchema }, { description: 'Aggregated stats for the requested station' }),
         400: errorResponse,
+        401: errorResponse,
         404: errorResponse,
         500: errorResponse
     }

@@ -552,58 +552,51 @@ function GlobalQrzSection({ mode }: { mode: QrzCredentialMode }) {
 }
 
 function CheckinOptionsSection() {
-    const { mobilityEnabled, refresh } = useAppConfig();
-    const [saving, setSaving] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const { mobilityEnabled, refresh: refreshAppConfig } = useAppConfig();
+    const [savingMobility, setSavingMobility] = useState(false);
+    const [mobilityError, setMobilityError] = useState<string | null>(null);
 
-    const handleToggle = async (enabled: boolean) => {
+    const handleMobilityToggle = async (enabled: boolean) => {
         try {
-            setSaving(true);
-            setError(null);
+            setSavingMobility(true);
+            setMobilityError(null);
             await updateAppSettings({ mobility_enabled: enabled });
-            await refresh();
+            await refreshAppConfig();
         } catch (err) {
             console.error('Failed to update app settings:', err);
-            setError(resolveErrorMessage(err, 'Failed to update mobility tracking.'));
+            setMobilityError(resolveErrorMessage(err, 'Failed to update mobility tracking.'));
         } finally {
-            setSaving(false);
+            setSavingMobility(false);
         }
     };
 
     return (
         <section className={SECTION_CLASS}>
-            <h2 className='text-lg font-semibold text-slate-100'>Check-in Options</h2>
-            <p className='mt-1 mb-6 text-sm text-slate-400'>
-                Choose which details operators record with each check-in.
-            </p>
-
-            <div className='space-y-4'>
-                {error && (
-                    <div className='rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200'>
-                        {error}
-                    </div>
-                )}
-
-                <label className='flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-700/70 bg-slate-950/60 px-4 py-3'>
-                    <input
-                        type='checkbox'
-                        checked={mobilityEnabled}
-                        onChange={(event) => { void handleToggle(event.target.checked); }}
-                        disabled={saving}
-                        className='mt-1 accent-indigo-500'
-                    />
-                    <span>
-                        <span className='block text-sm font-medium text-slate-100'>
-                            Enable mobility tracking
-                            {saving && <span className='ml-2 text-xs text-slate-500'>Saving…</span>}
-                        </span>
-                        <span className='block text-sm text-slate-400'>
-                            When disabled, mobility options are hidden and new check-ins are saved as fixed. Existing
-                            mobility data is kept and returns if tracking is re-enabled.
-                        </span>
+            <h2 className='mb-4 text-lg font-semibold text-slate-100'>Check-in Options</h2>
+            {mobilityError && (
+                <div className='rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200'>
+                    {mobilityError}
+                </div>
+            )}
+            <label className='flex cursor-pointer items-start gap-3'>
+                <input
+                    type='checkbox'
+                    checked={mobilityEnabled}
+                    onChange={(event) => { void handleMobilityToggle(event.target.checked); }}
+                    disabled={savingMobility}
+                    className='mt-1 h-4 w-4 rounded border-slate-700 bg-slate-950 accent-indigo-500 disabled:cursor-not-allowed disabled:opacity-60'
+                />
+                <span>
+                    <span className='block text-sm font-medium text-slate-200'>
+                        Enable mobility tracking
+                        {savingMobility && <span className='ml-2 text-xs text-slate-500'>Saving…</span>}
                     </span>
-                </label>
-            </div>
+                    <span className='mt-1 block text-sm text-slate-400'>
+                        When disabled, mobility options are hidden and new check-ins are saved as fixed. Existing
+                        mobility data is kept and returns if tracking is re-enabled.
+                    </span>
+                </span>
+            </label>
         </section>
     );
 }
@@ -640,13 +633,15 @@ export function SettingsPage() {
                 <header className='mb-10 space-y-3'>
                     <span className='inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.18em] text-indigo-400'>
                         <FiShield className='h-4 w-4' />
-                        Configuration
+                        Settings
                     </span>
                     <h1 className='text-3xl font-semibold text-slate-50 sm:text-4xl'>Settings</h1>
-                    <p className='max-w-2xl text-sm text-slate-400'>
-                        Your QRZ credentials, plus organization-wide options for admins.
-                    </p>
                 </header>
+
+                <h2 className='text-xl font-semibold text-slate-100'>QRZ Integration</h2>
+                <p className='mb-6 mt-2 max-w-2xl text-sm text-slate-400'>
+                    Manage the credentials NetMinder uses to authenticate against the QRZ XML API.
+                </p>
 
                 {loading ? (
                     <div className='flex h-40 items-center justify-center text-sm text-slate-400'>
@@ -670,12 +665,16 @@ export function SettingsPage() {
                             />
                         )}
 
-                        {isAdmin && account && (
+                    </div>
+                )}
+                {isAdmin && (
+                    <div className='mt-8 space-y-8'>
+                        <SectionDivider label='Organization settings' note='Admins only' />
+                        <CheckinOptionsSection />
+                        {account && (
                             <>
-                                <SectionDivider label='Organization settings' note='Admins only' />
                                 <ModeSection mode={account.mode} onChanged={loadAccount} />
                                 <GlobalQrzSection mode={account.mode} />
-                                <CheckinOptionsSection />
                             </>
                         )}
                     </div>

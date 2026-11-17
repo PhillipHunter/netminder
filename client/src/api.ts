@@ -39,10 +39,10 @@ export type StationStats = stations.StationStatsSchema;
 export type StationLookupResponse = stations.LookupResponse['lookup'];
 export type StationFieldSource = stations.StationLookupFieldSchema['source'];
 export type QrzSettingsStatus = settings.QRZStatusSchema;
+export type AppConfig = config.AppConfigSchema;
 export type QrzCredentialMode = settings.QRZModeSchema;
 export type AccountQrzStatus = account.AccountQrzStatusSchema;
 export type AccountQrzTestResult = account.TestResponse;
-export type AppConfig = config.AppConfigSchema;
 
 interface EdenErrorPayload {
     error: {
