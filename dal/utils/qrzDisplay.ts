@@ -11,8 +11,12 @@ export interface ParsedQrzData {
         name?: string;
         addr2?: string;
         state?: string;
+        lat?: string | number;
+        lon?: string | number;
+        grid?: string;
     };
     name?: string;
+    grid?: string;
 }
 
 export interface ParseQrzOptions {

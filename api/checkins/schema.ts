@@ -26,6 +26,12 @@ export const checkinSchema = t.Object({
     callsign: t.String({ description: 'Callsign reported for the checkin' }),
     display_name: t.Nullable(t.String({ description: 'Display name rendered for the station, if available' })),
     location_display: t.Nullable(t.String({ description: 'Formatted location text displayed to operators' })),
+    latitude: t.Nullable(t.Number({ description: 'Latitude of the station in decimal degrees, from QRZ or the grid square center' })),
+    longitude: t.Nullable(t.Number({ description: 'Longitude of the station in decimal degrees, from QRZ or the grid square center' })),
+    location_source: t.Nullable(t.Union([
+        t.Literal('qrz', { description: 'Coordinates registered with QRZ' }),
+        t.Literal('grid', { description: 'Approximate: center of the Maidenhead grid square' })
+    ], { description: 'Where the coordinates came from; null when the station has no known location' })),
     time_entered: t.String({ description: 'ISO-8601 timestamp when the checkin was recorded' }),
     mobility: mobilitySchema,
     staying: t.Boolean({ description: 'True when the station is staying for the remainder of the net' }),
@@ -44,6 +50,9 @@ export function toCheckinPayload(row: CheckinRow): CheckinSchema {
         callsign: row.callsign,
         display_name: row.display_name ?? null,
         location_display: row.location_display ?? null,
+        latitude: row.latitude,
+        longitude: row.longitude,
+        location_source: row.location_source,
         time_entered: row.time_entered,
         mobility: normalizeMobility(row.mobility),
         staying: row.staying,
