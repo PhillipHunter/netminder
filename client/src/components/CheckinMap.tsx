@@ -65,6 +65,17 @@ function ringOffset(index: number, count: number): L.Point {
     return L.point(Math.cos(angle) * radius, Math.sin(angle) * radius);
 }
 
+const PRECISION_NOTES: Record<string, string | null> = {
+    address: null,
+    zip: 'Approximate: ZIP code center',
+    grid: 'Approximate: grid square center',
+    state: 'Approximate: state center',
+    country: 'Approximate: country center',
+    unknown: 'Location precision not reported by QRZ'
+};
+
+const APPROXIMATE_PRECISIONS = ['zip', 'grid', 'state', 'country'];
+
 function buildPopup(item: LocatedCheckin): HTMLElement {
     const { checkin } = item;
     const root = document.createElement('div');
@@ -77,7 +88,7 @@ function buildPopup(item: LocatedCheckin): HTMLElement {
         checkin.display_name,
         checkin.location_display,
         `Location: ${item.lat.toFixed(4)}, ${item.lon.toFixed(4)}`,
-        checkin.location_source === 'grid' ? 'Approximate: grid square center' : null
+        PRECISION_NOTES[checkin.location_precision ?? 'address'] ?? null
     ];
     for (const line of lines) {
         if (!line)
@@ -103,7 +114,7 @@ const LABEL_OFFSETS: Record<string, L.PointExpression> = {
 };
 
 function buildMarker(item: LocatedCheckin, latLng: L.LatLng, direction: L.Direction = 'right'): L.CircleMarker {
-    const approximate = item.checkin.location_source === 'grid';
+    const approximate = APPROXIMATE_PRECISIONS.includes(item.checkin.location_precision ?? '');
     const marker = L.circleMarker(latLng, {
         radius: 7,
         color: MARKER_COLOR,
@@ -187,7 +198,7 @@ export function CheckinMap({ checkins, radarEnabled }: CheckinMapProps) {
 
         // Polling hands us a new array every few seconds; skip rebuilding (and closing open popups) unless something shown changed
         const renderKey = checkins
-            .map(c => [c.id, c.callsign, c.display_name, c.location_display, c.latitude, c.longitude, c.location_source].join('|'))
+            .map(c => [c.id, c.callsign, c.display_name, c.location_display, c.latitude, c.longitude, c.location_source, c.location_precision].join('|'))
             .join('\n');
         if (renderKey === renderKeyRef.current)
             return;

@@ -10,6 +10,7 @@ import {
 } from './stationHelpers';
 
 export type LocationSource = 'qrz' | 'grid';
+export type LocationPrecision = 'address' | 'zip' | 'grid' | 'state' | 'country' | 'unknown';
 
 export interface CheckinRow {
     id: number;
@@ -21,6 +22,7 @@ export interface CheckinRow {
     latitude: number | null;
     longitude: number | null;
     location_source: LocationSource | null;
+    location_precision: LocationPrecision | null;
     time_entered: string;
     mobility: string;
     staying: boolean;
@@ -50,6 +52,7 @@ interface ResolvedLocation {
     latitude: number | null;
     longitude: number | null;
     location_source: LocationSource | null;
+    location_precision: LocationPrecision | null;
 }
 
 function parseCoordinate(value: string | number | undefined, limit: number): number | null {
@@ -58,6 +61,19 @@ function parseCoordinate(value: string | number | undefined, limit: number): num
     }
     const parsed = Number(value);
     return Number.isFinite(parsed) && Math.abs(parsed) <= limit ? parsed : null;
+}
+
+const QRZ_GEOLOC_PRECISION = new Map<string, LocationPrecision>([
+    ['user', 'address'],
+    ['geocode', 'address'],
+    ['zip', 'zip'],
+    ['grid', 'grid'],
+    ['state', 'state'],
+    ['dxcc', 'country']
+]);
+
+function qrzPrecision(geoloc: string | undefined): LocationPrecision {
+    return QRZ_GEOLOC_PRECISION.get((geoloc ?? '').trim().toLowerCase()) ?? 'unknown';
 }
 
 function resolveLocation(qrzData: string | null): ResolvedLocation {
@@ -69,7 +85,8 @@ function resolveLocation(qrzData: string | null): ResolvedLocation {
         return {
             latitude: lat,
             longitude: lon,
-            location_source: 'qrz'
+            location_source: 'qrz',
+            location_precision: qrzPrecision(parsed?.raw?.geoloc)
         };
     }
 
@@ -78,14 +95,16 @@ function resolveLocation(qrzData: string | null): ResolvedLocation {
         return {
             latitude: fromGrid.lat,
             longitude: fromGrid.lon,
-            location_source: 'grid'
+            location_source: 'grid',
+            location_precision: 'grid'
         };
     }
 
     return {
         latitude: null,
         longitude: null,
-        location_source: null
+        location_source: null,
+        location_precision: null
     };
 }
 

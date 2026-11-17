@@ -32,6 +32,14 @@ export const checkinSchema = t.Object({
         t.Literal('qrz', { description: 'Coordinates registered with QRZ' }),
         t.Literal('grid', { description: 'Approximate: center of the Maidenhead grid square' })
     ], { description: 'Where the coordinates came from; null when the station has no known location' })),
+    location_precision: t.Nullable(t.Union([
+        t.Literal('address', { description: 'Address-level: set by the operator or geocoded from a street address' }),
+        t.Literal('zip', { description: 'Approximate: ZIP code center' }),
+        t.Literal('grid', { description: 'Approximate: grid square center' }),
+        t.Literal('state', { description: 'Approximate: state center' }),
+        t.Literal('country', { description: 'Approximate: country center' }),
+        t.Literal('unknown', { description: 'QRZ did not report how the coordinates were determined' })
+    ], { description: 'How precise the coordinates are; null when the station has no known location' })),
     time_entered: t.String({ description: 'ISO-8601 timestamp when the checkin was recorded' }),
     mobility: mobilitySchema,
     staying: t.Boolean({ description: 'True when the station is staying for the remainder of the net' }),
@@ -53,6 +61,7 @@ export function toCheckinPayload(row: CheckinRow): CheckinSchema {
         latitude: row.latitude,
         longitude: row.longitude,
         location_source: row.location_source,
+        location_precision: row.location_precision,
         time_entered: row.time_entered,
         mobility: normalizeMobility(row.mobility),
         staying: row.staying,

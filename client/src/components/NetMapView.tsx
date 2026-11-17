@@ -49,7 +49,7 @@ export function NetMapView({ checkins }: NetMapViewProps) {
                     Radar
                 </label>
                 <span className='text-xs text-slate-400'>
-                    Locations are registered QRZ addresses, not live positions
+                    Locations come from QRZ registrations, not live positions; dashed markers are approximate
                 </span>
             </div>
             <div className='min-h-0 flex-1'>
