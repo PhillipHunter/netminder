@@ -5,7 +5,7 @@ NetMinder helps amateur radio net control operators manage nets, station check-i
 ## Features
 
 - Create nets, record topics, and manage formal and informal sessions
-- Track station check-ins, callsigns, names, locations, and topic answers
+- Track station check-ins, callsigns, names, locations, and comments
 - View station history and export net records as CSV
 - Look up callsigns through optional QRZ integration
 - Manage operator accounts and administrator access

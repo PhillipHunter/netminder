@@ -8,19 +8,25 @@ import type { Net } from '@netminder/dal';
 import {
     clearNetEnd,
     clearNetFormalEnd,
-    findNetById,
+    findVisibleNet,
     markNetEnded,
     markNetFormalEnded,
     markNetStarted
 } from '@netminder/dal';
 
+import type { AuthUser } from '../auth/middleware';
 import {
     errorResponse,
+    unauthorizedResponse,
     type ErrorResponse
 } from '../common/errors';
+import { requireNetOwner } from '../common/ownership';
 import { parsePositiveInt } from '../common/validation';
 
-import { netSchema } from './schema';
+import {
+    netSchema,
+    toNetPayload
+} from './schema';
 
 const paramsSchema = t.Object({
     id: t.String({
@@ -46,17 +52,8 @@ function buildError(code: string, message: string): ErrorResponse {
     };
 }
 
-function toPayload(net: Net): NetResponse {
-    return {
-        net: {
-            id: net.id,
-            started_at: net.started_at ?? null,
-            ended_at: net.ended_at ?? null,
-            formal_ended_at: net.formal_ended_at ?? null,
-            topic: net.topic ?? null,
-            created_at: net.created_at
-        }
-    };
+function toPayload(net: Net, userId: number): NetResponse {
+    return { net: toNetPayload(net, userId) };
 }
 
 export const endContract = {
@@ -69,6 +66,7 @@ export const endContract = {
     response: {
         200: netResponseSchema,
         400: errorResponse,
+        403: errorResponse,
         404: errorResponse
     }
 } as const;
@@ -77,20 +75,32 @@ export type EndParams = Static<typeof endContract.params>;
 export type EndResponse = Static<typeof endContract.response[200]>;
 interface EndContext {
     params: EndParams;
+    user?: AuthUser | null;
     set: Context['set'];
 }
 
-export const endHandler = ({ params, set }: EndContext): EndResponse | ErrorResponse => {
+export const endHandler = ({ params, user, set }: EndContext): EndResponse | ErrorResponse => {
+    if (!user) {
+        set.status = 401;
+        return unauthorizedResponse();
+    }
+
     const netId = parseNetId(params);
     if (netId === null) {
         set.status = 400;
         return buildError('INVALID_ID', 'Invalid net ID');
     }
 
-    const current = findNetById(netId);
+    const current = findVisibleNet(netId, user.userId);
     if (!current) {
         set.status = 404;
         return buildError('NET_NOT_FOUND', 'Net not found');
+    }
+
+    const forbidden = requireNetOwner(current, user.userId);
+    if (forbidden) {
+        set.status = 403;
+        return forbidden;
     }
 
     if (current.started_at === null) {
@@ -104,7 +114,7 @@ export const endHandler = ({ params, set }: EndContext): EndResponse | ErrorResp
         return buildError('NET_NOT_FOUND', 'Net not found');
     }
 
-    return toPayload(net);
+    return toPayload(net, user.userId);
 };
 
 export const startContract = {
@@ -117,6 +127,7 @@ export const startContract = {
     response: {
         200: netResponseSchema,
         400: errorResponse,
+        403: errorResponse,
         404: errorResponse
     }
 } as const;
@@ -125,20 +136,32 @@ export type StartParams = Static<typeof startContract.params>;
 export type StartResponse = Static<typeof startContract.response[200]>;
 interface StartContext {
     params: StartParams;
+    user?: AuthUser | null;
     set: Context['set'];
 }
 
-export const startHandler = ({ params, set }: StartContext): StartResponse | ErrorResponse => {
+export const startHandler = ({ params, user, set }: StartContext): StartResponse | ErrorResponse => {
+    if (!user) {
+        set.status = 401;
+        return unauthorizedResponse();
+    }
+
     const netId = parseNetId(params);
     if (netId === null) {
         set.status = 400;
         return buildError('INVALID_ID', 'Invalid net ID');
     }
 
-    const net = findNetById(netId);
+    const net = findVisibleNet(netId, user.userId);
     if (!net) {
         set.status = 404;
         return buildError('NET_NOT_FOUND', 'Net not found');
+    }
+
+    const forbidden = requireNetOwner(net, user.userId);
+    if (forbidden) {
+        set.status = 403;
+        return forbidden;
     }
 
     if (net.started_at !== null && net.ended_at === null) {
@@ -157,7 +180,7 @@ export const startHandler = ({ params, set }: StartContext): StartResponse | Err
         return buildError('NET_NOT_FOUND', 'Net not found');
     }
 
-    return toPayload(updated);
+    return toPayload(updated, user.userId);
 };
 
 export const restartContract = {
@@ -170,6 +193,7 @@ export const restartContract = {
     response: {
         200: netResponseSchema,
         400: errorResponse,
+        403: errorResponse,
         404: errorResponse
     }
 } as const;
@@ -178,20 +202,32 @@ export type RestartParams = Static<typeof restartContract.params>;
 export type RestartResponse = Static<typeof restartContract.response[200]>;
 interface RestartContext {
     params: RestartParams;
+    user?: AuthUser | null;
     set: Context['set'];
 }
 
-export const restartHandler = ({ params, set }: RestartContext): RestartResponse | ErrorResponse => {
+export const restartHandler = ({ params, user, set }: RestartContext): RestartResponse | ErrorResponse => {
+    if (!user) {
+        set.status = 401;
+        return unauthorizedResponse();
+    }
+
     const netId = parseNetId(params);
     if (netId === null) {
         set.status = 400;
         return buildError('INVALID_ID', 'Invalid net ID');
     }
 
-    const existing = findNetById(netId);
+    const existing = findVisibleNet(netId, user.userId);
     if (!existing) {
         set.status = 404;
         return buildError('NET_NOT_FOUND', 'Net not found');
+    }
+
+    const forbidden = requireNetOwner(existing, user.userId);
+    if (forbidden) {
+        set.status = 403;
+        return forbidden;
     }
 
     if (existing.started_at === null) {
@@ -210,7 +246,7 @@ export const restartHandler = ({ params, set }: RestartContext): RestartResponse
         return buildError('NET_NOT_FOUND', 'Net not found');
     }
 
-    return toPayload(net);
+    return toPayload(net, user.userId);
 };
 
 export const endFormalContract = {
@@ -223,6 +259,7 @@ export const endFormalContract = {
     response: {
         200: netResponseSchema,
         400: errorResponse,
+        403: errorResponse,
         404: errorResponse
     }
 } as const;
@@ -231,20 +268,32 @@ export type EndFormalParams = Static<typeof endFormalContract.params>;
 export type EndFormalResponse = Static<typeof endFormalContract.response[200]>;
 interface EndFormalContext {
     params: EndFormalParams;
+    user?: AuthUser | null;
     set: Context['set'];
 }
 
-export const endFormalHandler = ({ params, set }: EndFormalContext): EndFormalResponse | ErrorResponse => {
+export const endFormalHandler = ({ params, user, set }: EndFormalContext): EndFormalResponse | ErrorResponse => {
+    if (!user) {
+        set.status = 401;
+        return unauthorizedResponse();
+    }
+
     const netId = parseNetId(params);
     if (netId === null) {
         set.status = 400;
         return buildError('INVALID_ID', 'Invalid net ID');
     }
 
-    const current = findNetById(netId);
+    const current = findVisibleNet(netId, user.userId);
     if (!current) {
         set.status = 404;
         return buildError('NET_NOT_FOUND', 'Net not found');
+    }
+
+    const forbidden = requireNetOwner(current, user.userId);
+    if (forbidden) {
+        set.status = 403;
+        return forbidden;
     }
 
     if (current.started_at === null) {
@@ -263,7 +312,7 @@ export const endFormalHandler = ({ params, set }: EndFormalContext): EndFormalRe
         return buildError('NET_NOT_FOUND', 'Net not found');
     }
 
-    return toPayload(net);
+    return toPayload(net, user.userId);
 };
 
 export const resumeFormalContract = {
@@ -276,6 +325,7 @@ export const resumeFormalContract = {
     response: {
         200: netResponseSchema,
         400: errorResponse,
+        403: errorResponse,
         404: errorResponse
     }
 } as const;
@@ -284,20 +334,32 @@ export type ResumeFormalParams = Static<typeof resumeFormalContract.params>;
 export type ResumeFormalResponse = Static<typeof resumeFormalContract.response[200]>;
 interface ResumeFormalContext {
     params: ResumeFormalParams;
+    user?: AuthUser | null;
     set: Context['set'];
 }
 
-export const resumeFormalHandler = ({ params, set }: ResumeFormalContext): ResumeFormalResponse | ErrorResponse => {
+export const resumeFormalHandler = ({ params, user, set }: ResumeFormalContext): ResumeFormalResponse | ErrorResponse => {
+    if (!user) {
+        set.status = 401;
+        return unauthorizedResponse();
+    }
+
     const netId = parseNetId(params);
     if (netId === null) {
         set.status = 400;
         return buildError('INVALID_ID', 'Invalid net ID');
     }
 
-    const current = findNetById(netId);
+    const current = findVisibleNet(netId, user.userId);
     if (!current) {
         set.status = 404;
         return buildError('NET_NOT_FOUND', 'Net not found');
+    }
+
+    const forbidden = requireNetOwner(current, user.userId);
+    if (forbidden) {
+        set.status = 403;
+        return forbidden;
     }
 
     if (current.started_at === null) {
@@ -316,5 +378,5 @@ export const resumeFormalHandler = ({ params, set }: ResumeFormalContext): Resum
         return buildError('NET_NOT_FOUND', 'Net not found');
     }
 
-    return toPayload(net);
+    return toPayload(net, user.userId);
 };

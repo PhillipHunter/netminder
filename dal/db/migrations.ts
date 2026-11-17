@@ -212,6 +212,27 @@ const MIGRATIONS: Migration[] = [
                   AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'qrz_credential_mode')
             `);
         }
+    },
+    {
+        id: '20261116_net_ownership_sharing',
+        name: 'Add created_by and shared columns to nets table',
+        run: (db) => {
+            if (!tableHasColumn(db, 'nets', 'created_by')) {
+                db.run('ALTER TABLE nets ADD COLUMN created_by INTEGER REFERENCES users(id) ON DELETE SET NULL');
+
+                db.run(`
+                    UPDATE nets
+                    SET created_by = (SELECT MIN(id) FROM users WHERE is_admin = 1)
+                `);
+            }
+
+            if (!tableHasColumn(db, 'nets', 'shared')) {
+                db.run('ALTER TABLE nets ADD COLUMN shared INTEGER NOT NULL DEFAULT 0');
+                db.run('UPDATE nets SET shared = 1');
+            }
+
+            db.run('CREATE INDEX IF NOT EXISTS idx_nets_created_by ON nets(created_by)');
+        }
     }
 ];
 

@@ -10,6 +10,7 @@ import type { AuthUser } from '../auth/middleware';
 import { normalizeMobility } from '../checkins/schema';
 import {
     errorResponse,
+    unauthorizedResponse,
     type ErrorResponse
 } from '../common/errors';
 
@@ -28,12 +29,13 @@ export const statsContract = {
     }, { description: 'Route parameters identifying the station whose stats are requested' }),
     detail: {
         summary: 'Get station stats',
-        description: 'Provides aggregated participation metrics and recent checkins for a station.',
+        description: 'Provides aggregated participation metrics and recent checkins for a station, limited to nets visible to the requesting user.',
         tags: ['Stations'] as string[]
     },
     response: {
         200: t.Object({ stats: stationStatsSchema }, { description: 'Aggregated stats for the requested station' }),
         400: errorResponse,
+        401: errorResponse,
         404: errorResponse,
         500: errorResponse
     }
@@ -43,15 +45,20 @@ export type StatsParams = Static<typeof statsContract.params>;
 export type StatsResponse = Static<typeof statsContract.response[200]>;
 interface StatsContext {
     params: StatsParams;
-    set: Context['set'];
     user?: AuthUser | null;
+    set: Context['set'];
 }
 
 export const statsHandler = ({
     params,
-    set,
-    user
+    user,
+    set
 }: StatsContext): StatsResponse | ErrorResponse => {
+    if (!user) {
+        set.status = 401;
+        return unauthorizedResponse();
+    }
+
     const decoded = decodeCallsignParam(params.callsign);
     if (!decoded) {
         set.status = 400;
@@ -65,7 +72,7 @@ export const statsHandler = ({
 
     try {
         const normalized = normalizeCallsignValue(decoded);
-        const stats = getStationStats(normalized, user?.userId ?? null);
+        const stats = getStationStats(normalized, user.userId);
 
         if (!stats) {
             set.status = 404;

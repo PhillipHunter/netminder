@@ -5,6 +5,7 @@ import {
     getLocationWithSuffixFromSource
 } from '../checkins/stationHelpers';
 import { db } from '../db';
+import { NET_VISIBLE_SQL } from '../nets/access';
 
 import { findStationByCallsign } from './get';
 
@@ -43,7 +44,7 @@ export interface StationStatsSummary {
     }[];
 }
 
-export function getStationStats(callsign: string, userId: number | null): StationStatsSummary | null {
+export function getStationStats(callsign: string, userId: number): StationStatsSummary | null {
     const station = findStationByCallsign(callsign);
     if (!station) {
         return null;
@@ -55,8 +56,10 @@ export function getStationStats(callsign: string, userId: number | null): Statio
             MAX(c.time_entered) as last_seen_at,
             COUNT(c.id) as total_checkins
         FROM checkins c
+        JOIN nets n ON n.id = c.net_id
         WHERE c.station_id = ?
-    `).get(station.id);
+          AND ${NET_VISIBLE_SQL}
+    `).get(station.id, userId);
 
     const recentRows = db.prepare<StationRecentCheckinRow>(`
         SELECT
@@ -67,10 +70,12 @@ export function getStationStats(callsign: string, userId: number | null): Statio
             c.staying,
             c.topic_answer
         FROM checkins c
+        JOIN nets n ON n.id = c.net_id
         WHERE c.station_id = ?
+          AND ${NET_VISIBLE_SQL}
         ORDER BY c.time_entered DESC
         LIMIT 10
-    `).all(station.id);
+    `).all(station.id, userId);
 
     const source = {
         preferred_name: station.preferred_name,

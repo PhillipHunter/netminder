@@ -24,6 +24,7 @@ export type User = users.UserSchema;
 export type AuthResponse = auth.LoginResponse;
 export type CreateUserPayload = users.CreateBody;
 export type UpdateUserPayload = users.UpdateBody;
+export type UserWithNetCount = users.ListResponse['users'][number];
 export type Net = nets.GetResponse['net'];
 export type NetListItem = nets.ListResponse['nets'][number];
 export type Checkin = checkins.CheckinSchema;
@@ -78,6 +79,22 @@ function isEdenErrorPayload(value: unknown): value is EdenErrorPayload {
 
     const error = candidate.error as { code?: unknown; message?: unknown };
     return typeof error.code === 'string' && typeof error.message === 'string';
+}
+
+export class ApiError extends Error {
+    readonly status: number;
+    readonly code: string | null;
+
+    constructor(message: string, status: number, code: string | null) {
+        super(message);
+        this.name = 'ApiError';
+        this.status = status;
+        this.code = code;
+    }
+}
+
+export function isNotFoundError(error: unknown): boolean {
+    return error instanceof ApiError && (error.status === 404 || error.code === 'NET_NOT_FOUND');
 }
 
 async function extractResponseError(response: unknown, fallback: string): Promise<string> {
@@ -135,7 +152,9 @@ async function unwrapResponse<TData = unknown, TResponse = unknown>(
             }
         }
 
-        throw new Error(responseMessage);
+        const errorValue = (result.error as { value?: unknown } | null)?.value;
+        const code = isEdenErrorPayload(errorValue) ? errorValue.error.code : null;
+        throw new ApiError(responseMessage, result.status, code);
     }
 
     const data = result.data;
