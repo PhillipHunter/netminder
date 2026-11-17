@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 
 import type { NetListItem } from '../api';
+import { useAppConfig } from '../contexts/AppConfigContext';
 
 interface NetsListProps {
     nets: NetListItem[];
@@ -9,6 +10,7 @@ interface NetsListProps {
 
 export const NetsList = ({ nets, onResumeNet }: NetsListProps) => {
     const navigate = useNavigate();
+    const { mobilityEnabled } = useAppConfig();
 
     const formatDate = (dateString: string | null) => {
         if (!dateString) {
@@ -115,7 +117,7 @@ export const NetsList = ({ nets, onResumeNet }: NetsListProps) => {
                             <div className='text-2xl font-semibold text-slate-300'>{net.counts.staying}</div>
                             <div className='text-xs text-slate-400'>Staying</div>
                         </div>
-                        {(net.counts.mobile > 0 || net.counts.portable > 0) && (
+                        {mobilityEnabled && (net.counts.mobile > 0 || net.counts.portable > 0) && (
                             <>
                                 <div>
                                     <div className='text-lg font-semibold text-slate-300'>{net.counts.mobile}</div>

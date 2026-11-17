@@ -17,6 +17,7 @@ import {
     refreshStation,
     updateStation
 } from '../api';
+import { useAppConfig } from '../contexts/AppConfigContext';
 import { parseDisplayName } from '../utils/displayName';
 import { resolveErrorMessage } from '../utils/errors';
 
@@ -38,6 +39,7 @@ export function StationHistoryPanel({
     onStationUpdated
 }: StationHistoryPanelProps) {
     const navigate = useNavigate();
+    const { mobilityEnabled } = useAppConfig();
     const [stats, setStats] = useState<StationStats | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -417,7 +419,7 @@ export function StationHistoryPanel({
                                             >
                                                 <div className='flex items-center justify-between'>
                                                     <div className='flex items-center gap-3'>
-                                                        {getMobilityIcon(checkin.mobility)}
+                                                        {mobilityEnabled && getMobilityIcon(checkin.mobility)}
                                                         <button
                                                             onClick={() => {
                                                                 onClose();

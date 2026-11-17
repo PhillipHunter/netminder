@@ -34,3 +34,10 @@ export {
     type UpdateModeErrorResponse,
     type UpdateModeResponse
 } from './update-mode';
+export {
+    updateAppContract,
+    updateAppHandler,
+    type UpdateAppBody,
+    type UpdateAppErrorResponse,
+    type UpdateAppResponse
+} from './app';

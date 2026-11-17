@@ -6,6 +6,7 @@ import {
 
 import {
     findVisibleNetForCheckin,
+    getMobilityEnabled,
     updateCheckinRecord
 } from '@netminder/dal';
 
@@ -93,7 +94,7 @@ export const updateHandler = ({ params, body, user, set }: UpdateContext): Updat
     }
 
     try {
-        const mobilityValue = body.mobility ? normalizeMobility(body.mobility) : undefined;
+        const mobilityValue = body.mobility && getMobilityEnabled() ? normalizeMobility(body.mobility) : undefined;
 
         const updated = updateCheckinRecord(id, {
             mobility: mobilityValue,

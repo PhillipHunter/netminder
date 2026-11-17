@@ -4,6 +4,7 @@ import { Elysia } from 'elysia';
 import * as account from './account';
 import * as auth from './auth';
 import * as checkins from './checkins';
+import * as config from './config';
 import * as health from './health';
 import * as nets from './nets';
 import * as settings from './settings';
@@ -56,7 +57,12 @@ const settingsRoutes = new Elysia()
     .get('/settings/qrz', settings.getHandler, settings.getContract)
     .put('/settings/qrz', settings.updateHandler, settings.updateContract)
     .put('/settings/qrz/mode', settings.updateModeHandler, settings.updateModeContract)
-    .delete('/settings/qrz', settings.deleteHandler, settings.deleteContract);
+    .delete('/settings/qrz', settings.deleteHandler, settings.deleteContract)
+    .put('/settings/app', settings.updateAppHandler, settings.updateAppContract);
+
+const configRoutes = new Elysia()
+    .use(auth.requireAuth)
+    .get('/config', config.getHandler, config.getContract);
 
 const accountRoutes = new Elysia()
     .use(auth.requireAuth)
@@ -95,6 +101,7 @@ export const routes = new Elysia({ prefix: '/api' })
     .use(usersRoutes)
     .use(settingsRoutes)
     .use(accountRoutes)
+    .use(configRoutes)
     .use(stationsRoutes)
     .use(checkinsRoutes)
     .use(netsRoutes);
@@ -105,6 +112,7 @@ export {
     account,
     auth,
     checkins,
+    config,
     health,
     nets,
     settings,
