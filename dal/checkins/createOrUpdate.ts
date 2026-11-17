@@ -2,6 +2,7 @@ import {
     db,
     type MobilityType
 } from '../db';
+import { NET_VISIBLE_SQL } from '../nets/access';
 import { upsertStationWithQRZ } from '../stations/mutations';
 
 import { listCheckinsByNet } from './list';
@@ -31,6 +32,7 @@ function fetchCheckinRecord(id: number, netId: number): CheckinRecord {
 
 export async function createCheckinWithMeta(
     netId: number,
+    userId: number | null,
     data: {
         callsign: string;
         mobility?: MobilityType;
@@ -49,7 +51,7 @@ export async function createCheckinWithMeta(
         const locationInput = data.location?.trim();
         const normalizedLocation = locationInput === '' ? null : locationInput ?? undefined;
 
-        const station = await upsertStationWithQRZ(normalizedCallsign, {
+        const station = await upsertStationWithQRZ(normalizedCallsign, userId, {
             preferred_name: preferredName,
             location: normalizedLocation
         });
@@ -65,9 +67,11 @@ export async function createCheckinWithMeta(
         const displayNameWithSuffix = getDisplayNameWithSuffixFromSource(station);
         const priorCheckinsResult = db.prepare<{ count: number }>(`
             SELECT COUNT(*) as count
-            FROM checkins
-            WHERE station_id = ? AND net_id != ?
-        `).get(station.id, netId);
+            FROM checkins c
+            JOIN nets n ON n.id = c.net_id
+            WHERE c.station_id = ? AND c.net_id != ?
+              AND ${NET_VISIBLE_SQL}
+        `).get(station.id, netId, userId);
         const priorCheckins = priorCheckinsResult?.count ?? 0;
 
         const history = db.prepare<{
@@ -75,11 +79,13 @@ export async function createCheckinWithMeta(
             last_seen_at: string | null;
         }>(`
             SELECT
-                MIN(time_entered) as first_seen_at,
-                MAX(time_entered) as last_seen_at
-            FROM checkins
-            WHERE station_id = ? AND net_id != ?
-        `).get(station.id, netId);
+                MIN(c.time_entered) as first_seen_at,
+                MAX(c.time_entered) as last_seen_at
+            FROM checkins c
+            JOIN nets n ON n.id = c.net_id
+            WHERE c.station_id = ? AND c.net_id != ?
+              AND ${NET_VISIBLE_SQL}
+        `).get(station.id, netId, userId);
 
         const lastSeenAt = history?.last_seen_at ?? null;
         const firstSeenAt = history?.first_seen_at ?? null;

@@ -2,6 +2,7 @@ import { edenTreaty } from '@elysiajs/eden';
 
 import type {
     App,
+    account,
     auth,
     checkins,
     config,
@@ -24,6 +25,7 @@ export type User = users.UserSchema;
 export type AuthResponse = auth.LoginResponse;
 export type CreateUserPayload = users.CreateBody;
 export type UpdateUserPayload = users.UpdateBody;
+export type UserWithNetCount = users.ListResponse['users'][number];
 export type Net = nets.GetResponse['net'];
 export type NetListItem = nets.ListResponse['nets'][number];
 export type Checkin = checkins.CheckinSchema;
@@ -38,6 +40,9 @@ export type StationLookupResponse = stations.LookupResponse['lookup'];
 export type StationFieldSource = stations.StationLookupFieldSchema['source'];
 export type QrzSettingsStatus = settings.QRZStatusSchema;
 export type AppConfig = config.AppConfigSchema;
+export type QrzCredentialMode = settings.QRZModeSchema;
+export type AccountQrzStatus = account.AccountQrzStatusSchema;
+export type AccountQrzTestResult = account.TestResponse;
 
 interface EdenErrorPayload {
     error: {
@@ -76,6 +81,22 @@ function isEdenErrorPayload(value: unknown): value is EdenErrorPayload {
 
     const error = candidate.error as { code?: unknown; message?: unknown };
     return typeof error.code === 'string' && typeof error.message === 'string';
+}
+
+export class ApiError extends Error {
+    readonly status: number;
+    readonly code: string | null;
+
+    constructor(message: string, status: number, code: string | null) {
+        super(message);
+        this.name = 'ApiError';
+        this.status = status;
+        this.code = code;
+    }
+}
+
+export function isNotFoundError(error: unknown): boolean {
+    return error instanceof ApiError && (error.status === 404 || error.code === 'NET_NOT_FOUND');
 }
 
 async function extractResponseError(response: unknown, fallback: string): Promise<string> {
@@ -133,7 +154,9 @@ async function unwrapResponse<TData = unknown, TResponse = unknown>(
             }
         }
 
-        throw new Error(responseMessage);
+        const errorValue = (result.error as { value?: unknown } | null)?.value;
+        const code = isEdenErrorPayload(errorValue) ? errorValue.error.code : null;
+        throw new ApiError(responseMessage, result.status, code);
     }
 
     const data = result.data;
@@ -285,6 +308,29 @@ export async function updateQrzSettings(payload: settings.UpdateBody): Promise<Q
 
 export async function deleteQrzSettings(): Promise<void> {
     await unwrapResponse(backend.api.settings.qrz.delete(), 'Failed to remove QRZ credentials');
+}
+
+export async function updateQrzMode(mode: QrzCredentialMode): Promise<QrzCredentialMode> {
+    const data = await unwrapResponse<settings.UpdateModeResponse>(backend.api.settings.qrz.mode.put({ mode }), 'Failed to update QRZ credential mode');
+    return data.mode;
+}
+
+export async function fetchAccountQrz(): Promise<AccountQrzStatus> {
+    const data = await unwrapResponse<account.GetResponse>(backend.api.account.qrz.get(), 'Failed to load your QRZ settings');
+    return data.settings;
+}
+
+export async function updateAccountQrz(payload: account.UpdateBody): Promise<AccountQrzStatus> {
+    const data = await unwrapResponse<account.UpdateResponse>(backend.api.account.qrz.put(payload), 'Failed to update your QRZ credentials');
+    return data.settings;
+}
+
+export async function testAccountQrz(): Promise<AccountQrzTestResult> {
+    return unwrapResponse<account.TestResponse>(backend.api.account.qrz.test.post(), 'Failed to test your QRZ credentials');
+}
+
+export async function deleteAccountQrz(): Promise<void> {
+    await unwrapResponse(backend.api.account.qrz.delete(), 'Failed to remove your QRZ credentials');
 }
 
 export async function fetchAppConfig(): Promise<AppConfig> {

@@ -5,24 +5,404 @@ import {
     useState
 } from 'react';
 import {
+    FiCheckCircle,
     FiSave,
     FiShield,
     FiTrash2
 } from 'react-icons/fi';
 
-import type { QrzSettingsStatus } from '../api';
+import type {
+    AccountQrzStatus,
+    QrzCredentialMode,
+    QrzSettingsStatus
+} from '../api';
 import {
+    deleteAccountQrz,
     deleteQrzSettings,
+    fetchAccountQrz,
     fetchQrzSettings,
+    testAccountQrz,
+    updateAccountQrz,
     updateAppSettings,
+    updateQrzMode,
     updateQrzSettings
 } from '../api';
 import { PageHeader } from '../components/PageHeader';
 import { useAppConfig } from '../contexts/AppConfigContext';
+import { useAuth } from '../contexts/AuthContext';
 import { resolveErrorMessage } from '../utils/errors';
 
-export function SettingsPage() {
-    const { mobilityEnabled, refresh: refreshAppConfig } = useAppConfig();
+const SECTION_CLASS = 'rounded-3xl border border-slate-800/70 bg-slate-900/80 p-8 shadow-[0_25px_60px_-35px_rgba(15,23,42,0.9)]';
+const INPUT_CLASS = 'w-full rounded-2xl border border-slate-700/70 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-400/60 focus:border-indigo-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/20';
+const PRIMARY_BUTTON_CLASS = 'inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_18px_30px_-22px_rgba(79,70,229,0.8)] transition hover:from-indigo-400 hover:to-violet-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/30 disabled:cursor-not-allowed disabled:opacity-60';
+const SECONDARY_BUTTON_CLASS = 'inline-flex items-center gap-2 rounded-2xl border border-slate-600/70 px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:border-slate-400 hover:text-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-500/30 disabled:cursor-not-allowed disabled:opacity-60';
+const DANGER_BUTTON_CLASS = 'inline-flex items-center gap-2 rounded-2xl border border-red-500/50 px-4 py-2.5 text-sm font-semibold text-red-200 transition hover:border-red-400 hover:text-red-100 focus:outline-none focus:ring-4 focus:ring-red-500/30 disabled:cursor-not-allowed disabled:opacity-60';
+
+interface CredentialFormProps {
+    username: string;
+    password: string;
+    saving: boolean;
+    submitLabel: string;
+    onUsernameChange: (value: string) => void;
+    onPasswordChange: (value: string) => void;
+    onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}
+
+function CredentialForm({
+    username,
+    password,
+    saving,
+    submitLabel,
+    onUsernameChange,
+    onPasswordChange,
+    onSubmit
+}: CredentialFormProps) {
+    return (
+        <form
+            onSubmit={onSubmit}
+            className='space-y-6'
+        >
+            <div className='grid gap-6 md:grid-cols-2'>
+                <div className='space-y-2'>
+                    <label className='text-sm font-medium text-slate-300'>
+                        QRZ Username
+                    </label>
+                    <input
+                        type='text'
+                        value={username}
+                        onChange={(event) => { onUsernameChange(event.target.value); }}
+                        className={INPUT_CLASS}
+                        placeholder='e.g. netminder_lookup'
+                        autoComplete='off'
+                    />
+                </div>
+                <div className='space-y-2'>
+                    <label className='flex items-center justify-between text-sm font-medium text-slate-300'>
+                        <span>QRZ Password</span>
+                        <span className='text-xs text-slate-500'>Stored encrypted</span>
+                    </label>
+                    <input
+                        type='password'
+                        value={password}
+                        onChange={(event) => { onPasswordChange(event.target.value); }}
+                        className={INPUT_CLASS}
+                        placeholder='Enter password'
+                        autoComplete='off'
+                    />
+                </div>
+            </div>
+
+            <div className='flex justify-end'>
+                <button
+                    type='submit'
+                    className={PRIMARY_BUTTON_CLASS}
+                    disabled={saving}
+                >
+                    <FiSave className='h-4 w-4' />
+                    {saving ? 'Validating…' : submitLabel}
+                </button>
+            </div>
+        </form>
+    );
+}
+
+interface Banners {
+    error: string | null;
+    success: string | null;
+}
+
+function SectionDivider({ label, note }: { label: string; note?: string }) {
+    return (
+        <div className='flex items-center gap-3'>
+            <span className='text-xs font-semibold uppercase tracking-[0.15em] text-slate-400'>
+                {label}
+                {note && <span className='ml-2 font-normal text-slate-500'>{note}</span>}
+            </span>
+            <div className='h-px flex-1 bg-slate-700/70' />
+        </div>
+    );
+}
+
+function StatusBanners({ error, success }: Banners) {
+    return (
+        <>
+            {error && (
+                <div className='rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200'>
+                    {error}
+                </div>
+            )}
+
+            {success && (
+                <div className='rounded-2xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200'>
+                    {success}
+                </div>
+            )}
+        </>
+    );
+}
+
+async function withMinimumDelay<T>(promise: Promise<T>, minMs = 1000): Promise<T> {
+    const start = Date.now();
+    const settle = async (): Promise<void> => {
+        const elapsed = Date.now() - start;
+        if (elapsed < minMs) {
+            await new Promise(resolve => setTimeout(resolve, minMs - elapsed));
+        }
+    };
+
+    try {
+        const result = await promise;
+        await settle();
+        return result;
+    } catch (err) {
+        await settle();
+        throw err;
+    }
+}
+
+function MyQrzSection({ account, onChanged }: { account: AccountQrzStatus; onChanged: () => Promise<void> }) {
+    const [username, setUsername] = useState(account.username ?? '');
+    const [password, setPassword] = useState('');
+    const [editing, setEditing] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [testing, setTesting] = useState(false);
+    const [removing, setRemoving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
+
+    const isGlobal = account.mode === 'global';
+    const showForm = !account.configured || editing;
+
+    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (!username.trim()) {
+            setError('QRZ username is required.');
+            return;
+        }
+
+        if (!password.trim()) {
+            setError('QRZ password is required.');
+            return;
+        }
+
+        try {
+            setSaving(true);
+            setError(null);
+            setSuccess(null);
+            await withMinimumDelay(updateAccountQrz({
+                username,
+                password
+            }));
+            setPassword('');
+            setEditing(false);
+            await onChanged();
+            setSuccess('Your QRZ credentials were saved.');
+        } catch (err) {
+            console.error('Failed to update QRZ credentials:', err);
+            setError(resolveErrorMessage(err, 'Failed to update your QRZ credentials.'));
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleTest = async () => {
+        try {
+            setTesting(true);
+            setError(null);
+            setSuccess(null);
+            const result = await withMinimumDelay(testAccountQrz());
+            if (result.valid) {
+                setSuccess('QRZ accepted your credentials.');
+            } else {
+                setError(result.message ?? 'QRZ rejected your credentials.');
+            }
+        } catch (err) {
+            console.error('Failed to test QRZ credentials:', err);
+            setError(resolveErrorMessage(err, 'Failed to test your QRZ credentials.'));
+        } finally {
+            setTesting(false);
+        }
+    };
+
+    const handleRemove = async () => {
+        const confirmed = window.confirm(
+            'Remove your QRZ credentials? QRZ lookups will be off for you until you add new credentials.'
+        );
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            setRemoving(true);
+            setError(null);
+            setSuccess(null);
+            await deleteAccountQrz();
+            setUsername('');
+            setPassword('');
+            setEditing(false);
+            await onChanged();
+            setSuccess('Your QRZ credentials were removed.');
+        } catch (err) {
+            console.error('Failed to remove QRZ credentials:', err);
+            setError(resolveErrorMessage(err, 'Failed to remove your QRZ credentials.'));
+        } finally {
+            setRemoving(false);
+        }
+    };
+
+    return (
+        <section className={SECTION_CLASS}>
+            <h2 className='text-lg font-semibold text-slate-100'>My QRZ Credentials</h2>
+            {!isGlobal && (
+                <p className='mt-1 mb-6 text-sm text-slate-400'>
+                    Your own QRZ account is used for your callsign lookups. Passwords are encrypted at rest and never
+                    displayed once saved.
+                </p>
+            )}
+
+            {isGlobal ? (
+                <p className='mt-1 text-sm text-slate-300'>Lookups use the organization&apos;s QRZ account.</p>
+            ) : (
+                <div className='space-y-6'>
+                    <StatusBanners error={error} success={success} />
+
+                    {account.configured && (
+                        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+                            <div>
+                                <p className='text-xs font-semibold uppercase tracking-[0.15em] text-slate-400'>
+                                    Active Username
+                                </p>
+                                <div className='mt-2 text-lg font-medium text-slate-100'>
+                                    {account.username}
+                                </div>
+                            </div>
+                            <div className='flex flex-wrap gap-3'>
+                                <button
+                                    type='button'
+                                    onClick={() => { void handleTest(); }}
+                                    className={SECONDARY_BUTTON_CLASS}
+                                    disabled={testing || saving || removing}
+                                >
+                                    <FiCheckCircle className='h-4 w-4' />
+                                    {testing ? 'Testing…' : 'Test'}
+                                </button>
+                                <button
+                                    type='button'
+                                    onClick={() => {
+                                        setEditing(value => !value);
+                                        setPassword('');
+                                    }}
+                                    className={SECONDARY_BUTTON_CLASS}
+                                    disabled={saving || removing}
+                                >
+                                    {editing ? 'Cancel' : 'Update'}
+                                </button>
+                                <button
+                                    type='button'
+                                    onClick={() => { void handleRemove(); }}
+                                    className={DANGER_BUTTON_CLASS}
+                                    disabled={removing || saving}
+                                >
+                                    <FiTrash2 className='h-4 w-4' />
+                                    {removing ? 'Removing…' : 'Remove'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {showForm && (
+                        <CredentialForm
+                            username={username}
+                            password={password}
+                            saving={saving}
+                            submitLabel='Save Credentials'
+                            onUsernameChange={setUsername}
+                            onPasswordChange={setPassword}
+                            onSubmit={(event) => { void handleSubmit(event); }}
+                        />
+                    )}
+                </div>
+            )}
+        </section>
+    );
+}
+
+function ModeSection({ mode, onChanged }: { mode: QrzCredentialMode; onChanged: () => Promise<void> }) {
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const handleChange = async (next: QrzCredentialMode) => {
+        if (next === mode) {
+            return;
+        }
+
+        try {
+            setSaving(true);
+            setError(null);
+            await updateQrzMode(next);
+            await onChanged();
+        } catch (err) {
+            console.error('Failed to update QRZ credential mode:', err);
+            setError(resolveErrorMessage(err, 'Failed to update QRZ credential mode.'));
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const options: { value: QrzCredentialMode; label: string; description: string }[] = [
+        {
+            value: 'per_user',
+            label: 'Per-user',
+            description: 'Each user adds their own QRZ credentials. Users without credentials get no QRZ lookups.'
+        },
+        {
+            value: 'global',
+            label: 'Global',
+            description: 'Everyone\'s lookups use the shared QRZ account configured below.'
+        }
+    ];
+
+    return (
+        <section className={SECTION_CLASS}>
+            <h2 className='text-lg font-semibold text-slate-100'>QRZ Credential Mode</h2>
+            <p className='mt-1 mb-6 text-sm text-slate-400'>
+                Choose whose QRZ account NetMinder uses for lookups. Stored credentials are kept when you switch modes.
+            </p>
+
+            <div className='space-y-4'>
+                {error && (
+                    <div className='rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200'>
+                        {error}
+                    </div>
+                )}
+
+                {options.map(option => (
+                    <label
+                        key={option.value}
+                        className='flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-700/70 bg-slate-950/60 px-4 py-3'
+                    >
+                        <input
+                            type='radio'
+                            name='qrz-credential-mode'
+                            value={option.value}
+                            checked={mode === option.value}
+                            onChange={() => { void handleChange(option.value); }}
+                            disabled={saving}
+                            className='mt-1'
+                        />
+                        <span>
+                            <span className='block text-sm font-medium text-slate-100'>{option.label}</span>
+                            <span className='block text-sm text-slate-400'>{option.description}</span>
+                        </span>
+                    </label>
+                ))}
+            </div>
+        </section>
+    );
+}
+
+function GlobalQrzSection({ mode }: { mode: QrzCredentialMode }) {
     const [status, setStatus] = useState<QrzSettingsStatus | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -31,8 +411,6 @@ export function SettingsPage() {
     const [password, setPassword] = useState('');
     const [saving, setSaving] = useState(false);
     const [removing, setRemoving] = useState(false);
-    const [savingMobility, setSavingMobility] = useState(false);
-    const [mobilityError, setMobilityError] = useState<string | null>(null);
 
     const fetchStatus = useCallback(async () => {
         try {
@@ -66,48 +444,25 @@ export function SettingsPage() {
             return;
         }
 
-        const start = Date.now();
-        const minValidationMs = 1000;
-        let waited = false;
-        const waitMinimum = async () => {
-            if (waited)
-                return;
-            waited = true;
-            const elapsed = Date.now() - start;
-            if (elapsed < minValidationMs) {
-                await new Promise(resolve => setTimeout(resolve, minValidationMs - elapsed));
-            }
-        };
-
         try {
             setSaving(true);
             setError(null);
             setSuccessMessage(null);
 
-            const responsePromise = updateQrzSettings({
+            const response = await withMinimumDelay(updateQrzSettings({
                 username,
                 password
-            });
-
-            const response = await responsePromise;
-
-            await waitMinimum();
+            }));
 
             setStatus(response);
             setSuccessMessage('QRZ credentials updated successfully.');
             setPassword('');
         } catch (err) {
             console.error('Failed to update QRZ settings:', err);
-            await waitMinimum();
             setError(resolveErrorMessage(err, 'Failed to update QRZ settings.'));
         } finally {
-            await waitMinimum();
             setSaving(false);
         }
-    };
-
-    const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
-        void handleSubmit(event);
     };
 
     const handleRemove = async () => {
@@ -138,6 +493,69 @@ export function SettingsPage() {
         }
     };
 
+    const isConfigured = status?.configured ?? false;
+
+    return (
+        <section className={SECTION_CLASS}>
+            <h2 className='text-lg font-semibold text-slate-100'>Global QRZ Credentials</h2>
+            <p className='mt-1 mb-6 text-sm text-slate-400'>
+                The shared account NetMinder uses to authenticate against the QRZ XML API.
+                {mode === 'per_user' && ' Used only in Global mode.'}
+            </p>
+
+            {loading ? (
+                <div className='flex h-40 items-center justify-center text-sm text-slate-400'>
+                    Loading QRZ configuration…
+                </div>
+            ) : (
+                <div className='space-y-6'>
+                    <StatusBanners error={error} success={successMessage} />
+
+                    {isConfigured ? (
+                        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+                            <div>
+                                <p className='text-xs font-semibold uppercase tracking-[0.15em] text-slate-400'>
+                                    Active Username
+                                </p>
+                                <div className='mt-2 text-lg font-medium text-slate-100'>
+                                    {status?.username}
+                                </div>
+                                <p className='mt-1 text-sm text-slate-500'>
+                                    Remove credentials to disable QRZ lookups or to connect a different account.
+                                </p>
+                            </div>
+                            <button
+                                type='button'
+                                onClick={() => { void handleRemove(); }}
+                                className={DANGER_BUTTON_CLASS}
+                                disabled={removing}
+                            >
+                                <FiTrash2 className='h-4 w-4' />
+                                {removing ? 'Removing…' : 'Remove Credentials'}
+                            </button>
+                        </div>
+                    ) : (
+                        <CredentialForm
+                            username={username}
+                            password={password}
+                            saving={saving}
+                            submitLabel='Save Credentials'
+                            onUsernameChange={setUsername}
+                            onPasswordChange={setPassword}
+                            onSubmit={(event) => { void handleSubmit(event); }}
+                        />
+                    )}
+                </div>
+            )}
+        </section>
+    );
+}
+
+function CheckinOptionsSection() {
+    const { mobilityEnabled, refresh: refreshAppConfig } = useAppConfig();
+    const [savingMobility, setSavingMobility] = useState(false);
+    const [mobilityError, setMobilityError] = useState<string | null>(null);
+
     const handleMobilityToggle = async (enabled: boolean) => {
         try {
             setSavingMobility(true);
@@ -152,7 +570,60 @@ export function SettingsPage() {
         }
     };
 
-    const isConfigured = status?.configured ?? false;
+    return (
+        <section className={SECTION_CLASS}>
+            <h2 className='mb-4 text-lg font-semibold text-slate-100'>Check-in Options</h2>
+            {mobilityError && (
+                <div className='rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200'>
+                    {mobilityError}
+                </div>
+            )}
+            <label className='flex cursor-pointer items-start gap-3'>
+                <input
+                    type='checkbox'
+                    checked={mobilityEnabled}
+                    onChange={(event) => { void handleMobilityToggle(event.target.checked); }}
+                    disabled={savingMobility}
+                    className='mt-1 h-4 w-4 rounded border-slate-700 bg-slate-950 accent-indigo-500 disabled:cursor-not-allowed disabled:opacity-60'
+                />
+                <span>
+                    <span className='block text-sm font-medium text-slate-200'>
+                        Enable mobility tracking
+                        {savingMobility && <span className='ml-2 text-xs text-slate-500'>Saving…</span>}
+                    </span>
+                    <span className='mt-1 block text-sm text-slate-400'>
+                        When disabled, mobility options are hidden and new check-ins are saved as fixed. Existing
+                        mobility data is kept and returns if tracking is re-enabled.
+                    </span>
+                </span>
+            </label>
+        </section>
+    );
+}
+
+export function SettingsPage() {
+    const { user } = useAuth();
+    const isAdmin = Boolean(user?.is_admin);
+
+    const [account, setAccount] = useState<AccountQrzStatus | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const loadAccount = useCallback(async () => {
+        try {
+            setError(null);
+            setAccount(await fetchAccountQrz());
+        } catch (err) {
+            console.error('Failed to load QRZ settings:', err);
+            setError(resolveErrorMessage(err, 'Failed to load QRZ settings.'));
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        void loadAccount();
+    }, [loadAccount]);
 
     return (
         <div className='min-h-screen bg-slate-950'>
@@ -162,137 +633,52 @@ export function SettingsPage() {
                 <header className='mb-10 space-y-3'>
                     <span className='inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.18em] text-indigo-400'>
                         <FiShield className='h-4 w-4' />
-                        Admin
+                        Settings
                     </span>
                     <h1 className='text-3xl font-semibold text-slate-50 sm:text-4xl'>Settings</h1>
                 </header>
 
                 <h2 className='text-xl font-semibold text-slate-100'>QRZ Integration</h2>
-                <p className='mb-4 mt-2 max-w-2xl text-sm text-slate-400'>
-                    Manage the credentials NetMinder uses to authenticate against the QRZ XML API. Passwords are
-                    encrypted at rest and never displayed once saved.
+                <p className='mb-6 mt-2 max-w-2xl text-sm text-slate-400'>
+                    Manage the credentials NetMinder uses to authenticate against the QRZ XML API.
                 </p>
 
-                <section className='rounded-3xl border border-slate-800/70 bg-slate-900/80 p-8 shadow-[0_25px_60px_-35px_rgba(15,23,42,0.9)]'>
-                    {loading ? (
-                        <div className='flex h-40 items-center justify-center text-sm text-slate-400'>
-                            Loading QRZ configuration…
-                        </div>
-                    ) : (
-                        <div className='space-y-6'>
-                            {error && (
-                                <div className='rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200'>
-                                    {error}
-                                </div>
-                            )}
+                {loading ? (
+                    <div className='flex h-40 items-center justify-center text-sm text-slate-400'>
+                        Loading QRZ configuration…
+                    </div>
+                ) : (
+                    <div className='space-y-8'>
+                        {error && (
+                            <div className='rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200'>
+                                {error}
+                            </div>
+                        )}
 
-                            {successMessage && (
-                                <div className='rounded-2xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200'>
-                                    {successMessage}
-                                </div>
-                            )}
+                        {isAdmin && account && <SectionDivider label='Your settings' />}
 
-                            {isConfigured ? (
-                                <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
-                                    <div>
-                                        <p className='text-xs font-semibold uppercase tracking-[0.15em] text-slate-400'>
-                                            Active Username
-                                        </p>
-                                        <div className='mt-2 text-lg font-medium text-slate-100'>
-                                            {status?.username}
-                                        </div>
-                                        <p className='mt-1 text-sm text-slate-500'>
-                                            Remove credentials to disable QRZ lookups or to connect a different account.
-                                        </p>
-                                    </div>
-                                    <button
-                                        type='button'
-                                        onClick={() => { void handleRemove(); }}
-                                        className='inline-flex items-center gap-2 rounded-2xl border border-red-500/50 px-4 py-2.5 text-sm font-semibold text-red-200 transition hover:border-red-400 hover:text-red-100 focus:outline-none focus:ring-4 focus:ring-red-500/30 disabled:cursor-not-allowed disabled:opacity-60'
-                                        disabled={removing}
-                                    >
-                                        <FiTrash2 className='h-4 w-4' />
-                                        {removing ? 'Removing…' : 'Remove Credentials'}
-                                    </button>
-                                </div>
-                            ) : (
-                                <form
-                                    onSubmit={handleFormSubmit}
-                                    className='space-y-6'
-                                >
-                                    <div className='grid gap-6 md:grid-cols-2'>
-                                        <div className='space-y-2'>
-                                            <label className='text-sm font-medium text-slate-300'>
-                                                QRZ Username
-                                            </label>
-                                            <input
-                                                type='text'
-                                                value={username}
-                                                onChange={(event) => { setUsername(event.target.value); }}
-                                                className='w-full rounded-2xl border border-slate-700/70 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-400/60 focus:border-indigo-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/20'
-                                                placeholder='e.g. netminder_lookup'
-                                                autoComplete='off'
-                                            />
-                                        </div>
-                                        <div className='space-y-2'>
-                                            <label className='flex items-center justify-between text-sm font-medium text-slate-300'>
-                                                <span>QRZ Password</span>
-                                                <span className='text-xs text-slate-500'>Stored encrypted</span>
-                                            </label>
-                                            <input
-                                                type='password'
-                                                value={password}
-                                                onChange={(event) => { setPassword(event.target.value); }}
-                                                className='w-full rounded-2xl border border-slate-700/70 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-400/60 focus:border-indigo-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/20'
-                                                placeholder='Enter password'
-                                                autoComplete='off'
-                                            />
-                                        </div>
-                                    </div>
+                        {account && (
+                            <MyQrzSection
+                                key={account.mode}
+                                account={account}
+                                onChanged={loadAccount}
+                            />
+                        )}
 
-                                    <div className='flex justify-end'>
-                                        <button
-                                            type='submit'
-                                            className='inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_18px_30px_-22px_rgba(79,70,229,0.8)] transition hover:from-indigo-400 hover:to-violet-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/30 disabled:cursor-not-allowed disabled:opacity-60'
-                                            disabled={saving}
-                                        >
-                                            <FiSave className='h-4 w-4' />
-                                            {saving ? 'Validating…' : 'Save Credentials'}
-                                        </button>
-                                    </div>
-                                </form>
-                            )}
-                        </div>
-                    )}
-                </section>
-
-                <h2 className='mt-10 text-xl font-semibold text-slate-100'>Check-in Options</h2>
-                <section className='mt-4 space-y-4 rounded-3xl border border-slate-800/70 bg-slate-900/80 p-8 shadow-[0_25px_60px_-35px_rgba(15,23,42,0.9)]'>
-                    {mobilityError && (
-                        <div className='rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200'>
-                            {mobilityError}
-                        </div>
-                    )}
-                    <label className='flex cursor-pointer items-start gap-3'>
-                        <input
-                            type='checkbox'
-                            checked={mobilityEnabled}
-                            onChange={(event) => { void handleMobilityToggle(event.target.checked); }}
-                            disabled={savingMobility}
-                            className='mt-1 h-4 w-4 rounded border-slate-700 bg-slate-950 accent-indigo-500 disabled:cursor-not-allowed disabled:opacity-60'
-                        />
-                        <span>
-                            <span className='block text-sm font-medium text-slate-200'>
-                                Enable mobility tracking
-                                {savingMobility && <span className='ml-2 text-xs text-slate-500'>Saving…</span>}
-                            </span>
-                            <span className='mt-1 block text-sm text-slate-400'>
-                                When disabled, mobility options are hidden and new check-ins are saved as fixed. Existing
-                                mobility data is kept and returns if tracking is re-enabled.
-                            </span>
-                        </span>
-                    </label>
-                </section>
+                    </div>
+                )}
+                {isAdmin && (
+                    <div className='mt-8 space-y-8'>
+                        <SectionDivider label='Organization settings' note='Admins only' />
+                        <CheckinOptionsSection />
+                        {account && (
+                            <>
+                                <ModeSection mode={account.mode} onChanged={loadAccount} />
+                                <GlobalQrzSection mode={account.mode} />
+                            </>
+                        )}
+                    </div>
+                )}
             </main>
         </div>
     );

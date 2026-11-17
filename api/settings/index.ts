@@ -1,8 +1,10 @@
 export {
     errorResponse,
+    qrzModeSchema,
     qrzStatusResponseSchema,
     qrzStatusSchema,
     type ErrorResponse,
+    type QRZModeSchema,
     type QRZStatusResponseSchema,
     type QRZStatusSchema
 } from './schema';
@@ -25,6 +27,13 @@ export {
     type DeleteErrorResponse,
     type DeleteResponse
 } from './delete';
+export {
+    updateModeContract,
+    updateModeHandler,
+    type UpdateModeBody,
+    type UpdateModeErrorResponse,
+    type UpdateModeResponse
+} from './update-mode';
 export {
     updateAppContract,
     updateAppHandler,

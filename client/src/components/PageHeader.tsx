@@ -57,18 +57,16 @@ export function PageHeader() {
                                         Users
                                     </Link>
                                 )}
-                                {isAdmin && (
-                                    <Link
-                                        to='/settings'
-                                        className={`rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ${
-                                            location.pathname === '/settings'
-                                                ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-slate-100 border border-indigo-500/30'
-                                                : 'text-slate-300 hover:bg-slate-700/50 hover:text-slate-100'
-                                        }`}
-                                    >
-                                        Settings
-                                    </Link>
-                                )}
+                                <Link
+                                    to='/settings'
+                                    className={`rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ${
+                                        location.pathname === '/settings'
+                                            ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-slate-100 border border-indigo-500/30'
+                                            : 'text-slate-300 hover:bg-slate-700/50 hover:text-slate-100'
+                                    }`}
+                                >
+                                    Settings
+                                </Link>
                             </nav>
                         )}
                     </div>

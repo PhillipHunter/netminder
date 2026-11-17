@@ -5,7 +5,7 @@ NetMinder helps amateur radio net control operators manage nets, station check-i
 ## Features
 
 - Create nets, record topics, and manage formal and informal sessions
-- Track station check-ins, callsigns, names, locations, and topic answers
+- Track station check-ins, callsigns, names, locations, and comments
 - Optionally track fixed, mobile, and portable check-ins; admins can turn this off under Settings (Enable mobility tracking), which hides mobility controls while keeping stored data
 - View station history and export net records as CSV
 - Look up callsigns through optional QRZ integration
@@ -26,7 +26,16 @@ bun run dev
 
 Replace the example secrets in `.env` with separate values generated using `openssl rand -base64 32`. Local development has fallback keys when variables are unset; production requires both keys.
 
-Open `http://localhost:8080` and create the initial administrator account. Complete setup before making the server accessible to others. Configure optional QRZ credentials from the administrator settings page.
+Open `http://localhost:8080` and create the initial administrator account. Complete setup before making the server accessible to others. QRZ lookups are optional; see below.
+
+## QRZ credentials
+
+QRZ lookups run on QRZ accounts configured on the Settings page, which is open to every signed-in user. Administrators choose one of two modes:
+
+- **Per-user** (default for new installs): each user saves their own QRZ credentials under "My QRZ Credentials". A user without credentials gets no QRZ lookups and sees a notice on the active net page; manual entry still works. There is no fallback to the global account.
+- **Global**: all lookups use the shared account an administrator saves under "Global QRZ Credentials", and users cannot change credentials.
+
+Existing installs that already have global credentials start in Global mode after upgrading. Stored credentials are kept when switching modes. Passwords are encrypted with `CONFIG_ENCRYPTION_KEY`, and QRZ sessions are cached per credential set.
 
 API documentation is available at `http://localhost:8080/api/openapi`.
 

@@ -133,8 +133,8 @@ export function CheckinRow({
             const updated = await updateCheckinApi(checkin.id, { topic_answer: normalizedValue });
             onUpdate(updated);
         } catch (error) {
-            console.error('Error updating topic answer:', error);
-            throw error instanceof Error ? error : new Error('Failed to update topic answer');
+            console.error('Error updating comments:', error);
+            throw error instanceof Error ? error : new Error('Failed to update comments');
         }
     };
 
@@ -359,12 +359,12 @@ export function CheckinRow({
                 </button>
             </td>
 
-            {/* Topic Answer (editable) */}
+            {/* Comments (editable) */}
             <td className='px-4 py-3'>
                 <EditableText
                     value={checkin.topic_answer ?? null}
                     onSave={handleTopicSave}
-                    placeholder='Add answer'
+                    placeholder='Add comment'
                     className='w-full'
                     textClassName='w-full text-left text-sm text-slate-300 hover:text-slate-100'
                 />

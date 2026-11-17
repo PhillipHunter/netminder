@@ -61,20 +61,21 @@ function App() {
                             )}
                         />
 
+                        <Route
+                            path='/settings'
+                            element={(
+                                <ProtectedRoute>
+                                    <SettingsPage />
+                                </ProtectedRoute>
+                            )}
+                        />
+
                         {/* Admin-only routes */}
                         <Route
                             path='/users'
                             element={(
                                 <ProtectedRoute requireAdmin>
                                     <UsersPage />
-                                </ProtectedRoute>
-                            )}
-                        />
-                        <Route
-                            path='/settings'
-                            element={(
-                                <ProtectedRoute requireAdmin>
-                                    <SettingsPage />
                                 </ProtectedRoute>
                             )}
                         />

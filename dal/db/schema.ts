@@ -19,6 +19,16 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`;
 
+export const USER_QRZ_CREDENTIALS_TABLE = `
+CREATE TABLE IF NOT EXISTS user_qrz_credentials (
+  user_id INTEGER PRIMARY KEY,
+  username TEXT NOT NULL,
+  password TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+)`;
+
 export const NETS_TABLE = `
 CREATE TABLE IF NOT EXISTS nets (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,7 +36,9 @@ CREATE TABLE IF NOT EXISTS nets (
   ended_at TEXT,
   formal_ended_at TEXT,
   topic TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  shared INTEGER NOT NULL DEFAULT 0
 )`;
 
 export const STATIONS_TABLE = `
@@ -75,9 +87,18 @@ export const CHECKINS_COMPOSITE_INDEX = `
 CREATE INDEX IF NOT EXISTS idx_checkins_station_time
 ON checkins(station_id, time_entered)`;
 
+/**
+ * Kept out of SCHEMA_STATEMENTS: on databases that predate net ownership the column only
+ * exists after migrations run, so initDatabase applies this index afterwards.
+ */
+export const NETS_CREATED_BY_INDEX = `
+CREATE INDEX IF NOT EXISTS idx_nets_created_by
+ON nets(created_by)`;
+
 export const SCHEMA_STATEMENTS = [
     USERS_TABLE,
     SETTINGS_TABLE,
+    USER_QRZ_CREDENTIALS_TABLE,
     NETS_TABLE,
     STATIONS_TABLE,
     CHECKINS_TABLE,

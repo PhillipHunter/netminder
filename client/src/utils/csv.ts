@@ -86,7 +86,7 @@ export function exportCheckinsToCSV(checkins: Checkin[], netInfo: Net, options: 
         'Name',
         ...(includeMobility ? ['Mobility'] : []),
         'Staying',
-        'Topic Answer',
+        'Comments',
         'Called Back',
         'Notes'
     ];

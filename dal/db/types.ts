@@ -19,6 +19,8 @@ export interface Net {
     formal_ended_at: string | null;
     topic: string | null;
     created_at: string;
+    created_by: number | null;
+    shared: number;
 }
 
 export interface Station {
@@ -50,6 +52,14 @@ export interface Checkin {
 export interface Setting {
     key: string;
     value: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface UserQRZCredential {
+    user_id: number;
+    username: string;
+    password: string;
     created_at: string;
     updated_at: string;
 }

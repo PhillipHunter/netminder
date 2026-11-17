@@ -6,12 +6,14 @@ import {
 
 import {
     createCheckinWithMeta,
-    findNetById,
+    findVisibleNet,
     getMobilityEnabled
 } from '@netminder/dal';
 
+import type { AuthUser } from '../auth/middleware';
 import {
     errorResponse,
+    unauthorizedResponse,
     type ErrorResponse
 } from '../common/errors';
 import { parsePositiveInt } from '../common/validation';
@@ -38,7 +40,7 @@ export const createContract = {
         }),
         mobility: t.Optional(mobilitySchema),
         staying: t.Optional(t.Boolean({ description: 'True when the station is staying for the duration of the net' })),
-        topic_answer: t.Optional(t.String({ description: 'Answer the station provided for the current net topic' })),
+        topic_answer: t.Optional(t.String({ description: 'Comments recorded for the station check-in' })),
         operator_notes: t.Optional(t.String({ description: 'Internal notes for net control regarding this station' })),
         preferred_name: t.Optional(t.String({
             description: 'Preferred name for the station; stored on the station profile',
@@ -60,6 +62,8 @@ export const createContract = {
             meta: checkinMetaSchema
         }, { description: 'Newly created checkin and associated station metadata' }),
         400: errorResponse,
+        401: errorResponse,
+        404: errorResponse,
         500: errorResponse
     }
 } as const;
@@ -71,6 +75,7 @@ export type CreateResponse = Static<typeof createContract.response[201]>;
 interface CreateContext {
     params: CreateParams;
     body: CreateBody;
+    user?: AuthUser | null;
     set: Context['set'];
 }
 
@@ -78,7 +83,12 @@ function parseNetId(params: CreateParams): number | null {
     return parsePositiveInt(params.id);
 }
 
-export const createHandler = async ({ params, body, set }: CreateContext): Promise<CreateResponse | ErrorResponse> => {
+export const createHandler = async ({ params, body, user, set }: CreateContext): Promise<CreateResponse | ErrorResponse> => {
+    if (!user) {
+        set.status = 401;
+        return unauthorizedResponse();
+    }
+
     const netId = parseNetId(params);
     if (netId === null) {
         set.status = 400;
@@ -90,7 +100,7 @@ export const createHandler = async ({ params, body, set }: CreateContext): Promi
         };
     }
 
-    const net = findNetById(netId);
+    const net = findVisibleNet(netId, user.userId);
     if (!net) {
         set.status = 404;
         return {
@@ -123,7 +133,7 @@ export const createHandler = async ({ params, body, set }: CreateContext): Promi
 
     try {
         const normalizedMobility = body.mobility && getMobilityEnabled() ? normalizeMobility(body.mobility) : undefined;
-        const result = await createCheckinWithMeta(netId, {
+        const result = await createCheckinWithMeta(netId, user.userId, {
             callsign: body.callsign,
             mobility: normalizedMobility,
             staying: body.staying,

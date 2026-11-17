@@ -13,8 +13,13 @@ import {
     type TypedStatement
 } from '../db';
 
+import { getUserQRZCredentials } from './userQrz';
+
 const QRZ_USERNAME_KEY = 'qrz_username';
 const QRZ_PASSWORD_KEY = 'qrz_password';
+const QRZ_MODE_KEY = 'qrz_credential_mode';
+
+export type QRZCredentialMode = 'per_user' | 'global';
 
 let selectSettingStmt: TypedStatement<Setting> | null = null;
 let upsertSettingStmt: TypedStatement | null = null;
@@ -214,6 +219,11 @@ export function updateQRZCredentials(input: UpdateQRZInput): QRZSettingsStatus {
     setSetting(QRZ_USERNAME_KEY, username);
     setSetting(QRZ_PASSWORD_KEY, encryptedPassword);
 
+    // Pin the mode so a later migration replay on a fresh database can't mistake these credentials for a legacy setup.
+    if (!getSetting(QRZ_MODE_KEY)) {
+        setSetting(QRZ_MODE_KEY, 'per_user');
+    }
+
     const usernameSetting = getSetting(QRZ_USERNAME_KEY);
     const passwordSetting = getSetting(QRZ_PASSWORD_KEY);
     const updatedAt = passwordSetting ? passwordSetting.updated_at : null;
@@ -233,4 +243,20 @@ export function clearQRZCredentials(): void {
     credentialCache = null;
 }
 
-setQRZCredentialProvider(() => getQRZCredentials());
+export function getQRZCredentialMode(): QRZCredentialMode {
+    return getSetting(QRZ_MODE_KEY)?.value === 'global' ? 'global' : 'per_user';
+}
+
+export function setQRZCredentialMode(mode: QRZCredentialMode): void {
+    setSetting(QRZ_MODE_KEY, mode);
+}
+
+export function resolveQRZCredentials(userId: number | null): QRZCredentials | null {
+    if (getQRZCredentialMode() === 'global') {
+        return getQRZCredentials();
+    }
+
+    return userId === null ? null : getUserQRZCredentials(userId);
+}
+
+setQRZCredentialProvider(userId => resolveQRZCredentials(userId));

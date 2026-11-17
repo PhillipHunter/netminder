@@ -1,6 +1,7 @@
 import { openapi } from '@elysiajs/openapi';
 import { Elysia } from 'elysia';
 
+import * as account from './account';
 import * as auth from './auth';
 import * as checkins from './checkins';
 import * as config from './config';
@@ -55,12 +56,20 @@ const settingsRoutes = new Elysia()
     .use(auth.requireAdmin)
     .get('/settings/qrz', settings.getHandler, settings.getContract)
     .put('/settings/qrz', settings.updateHandler, settings.updateContract)
+    .put('/settings/qrz/mode', settings.updateModeHandler, settings.updateModeContract)
     .delete('/settings/qrz', settings.deleteHandler, settings.deleteContract)
     .put('/settings/app', settings.updateAppHandler, settings.updateAppContract);
 
 const configRoutes = new Elysia()
     .use(auth.requireAuth)
     .get('/config', config.getHandler, config.getContract);
+
+const accountRoutes = new Elysia()
+    .use(auth.requireAuth)
+    .get('/account/qrz', account.getHandler, account.getContract)
+    .put('/account/qrz', account.updateHandler, account.updateContract)
+    .post('/account/qrz/test', account.testHandler, account.testContract)
+    .delete('/account/qrz', account.deleteHandler, account.deleteContract);
 
 const checkinsRoutes = new Elysia()
     .use(auth.requireAuth)
@@ -92,10 +101,21 @@ export const routes = new Elysia({ prefix: '/api' })
     .use(usersRoutes)
     .use(settingsRoutes)
     .use(configRoutes)
+    .use(accountRoutes)
     .use(stationsRoutes)
     .use(checkinsRoutes)
     .use(netsRoutes);
 
 export type App = typeof routes;
 
-export { auth, checkins, config, health, nets, settings, stations, users };
+export {
+    account,
+    auth,
+    checkins,
+    config,
+    health,
+    nets,
+    settings,
+    stations,
+    users
+};

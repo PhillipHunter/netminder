@@ -7,15 +7,16 @@ export interface NetUpdate {
     topic?: string | null;
     ended_at?: string | null;
     formal_ended_at?: string | null;
+    shared?: boolean;
 }
 
-export function insertNet(topic?: string | null): Net {
+export function insertNet(topic: string | null | undefined, createdBy: number, shared: boolean): Net {
     const stmt = db.prepare(`
-        INSERT INTO nets (started_at, topic)
-        VALUES (?, ?)
+        INSERT INTO nets (started_at, topic, created_by, shared)
+        VALUES (?, ?, ?, ?)
     `);
 
-    const result = stmt.run(null, topic ?? null) as { lastInsertRowid: number | bigint };
+    const result = stmt.run(null, topic ?? null, createdBy, shared ? 1 : 0) as { lastInsertRowid: number | bigint };
     const id = Number(result.lastInsertRowid);
     const net = findNetById(id);
 
@@ -26,7 +27,7 @@ export function insertNet(topic?: string | null): Net {
     return net;
 }
 
-export function endAllActiveNets(): void {
+export function endAllActiveNets(userId: number): void {
     const now = new Date().toISOString();
     db.prepare(`
         UPDATE nets
@@ -35,7 +36,8 @@ export function endAllActiveNets(): void {
             formal_ended_at = COALESCE(formal_ended_at, ?)
         WHERE ended_at IS NULL
           AND started_at IS NOT NULL
-    `).run(now, now);
+          AND created_by = ?
+    `).run(now, now, userId);
 }
 
 export function updateNetRecord(id: number, updates: NetUpdate): Net | null {
@@ -60,6 +62,11 @@ export function updateNetRecord(id: number, updates: NetUpdate): Net | null {
     if (updates.formal_ended_at !== undefined) {
         fields.push('formal_ended_at = ?');
         values.push(updates.formal_ended_at);
+    }
+
+    if (updates.shared !== undefined) {
+        fields.push('shared = ?');
+        values.push(updates.shared ? 1 : 0);
     }
 
     if (fields.length === 0) {

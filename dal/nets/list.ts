@@ -1,6 +1,8 @@
 import type { Net } from '../db';
 import { db } from '../db';
 
+import { NET_VISIBLE_SQL } from './access';
+
 export interface NetCountsRow {
     total: number;
     staying: number;
@@ -25,8 +27,11 @@ const LIST_NETS_SQL = `
       n.ended_at,
       n.formal_ended_at,
       n.topic,
-      n.created_at
+      n.created_at,
+      n.created_by,
+      n.shared
     FROM nets n
+    WHERE ${NET_VISIBLE_SQL}
     ORDER BY COALESCE(n.started_at, n.created_at) DESC, n.id DESC
     LIMIT ? OFFSET ?
 `;
@@ -47,7 +52,7 @@ const NET_COUNTS_SQL = `
     WHERE net_id = ?
 `;
 
-const NET_TOTAL_SQL = 'SELECT COUNT(*) as count FROM nets';
+const NET_TOTAL_SQL = `SELECT COUNT(*) as count FROM nets n WHERE ${NET_VISIBLE_SQL}`;
 
 /**
  * Returns the per-net attendance breakdown used by the UI pagination view. Missing
@@ -76,8 +81,8 @@ function selectNetCounts(netId: number): NetCountsRow {
  * counters. The counts call remains per-row for now so cached statements (see cleanup
  * item #3) can hoist naturally once implemented.
  */
-export function listNets(limit: number, offset: number): NetRow[] {
-    const nets = db.prepare<Net>(LIST_NETS_SQL).all(limit, offset);
+export function listNets(userId: number, limit: number, offset: number): NetRow[] {
+    const nets = db.prepare<Net>(LIST_NETS_SQL).all(userId, limit, offset);
     return nets.map(net => ({
         ...net,
         counts: selectNetCounts(net.id)
@@ -88,7 +93,7 @@ export function listNets(limit: number, offset: number): NetRow[] {
  * Gives the total number of nets for pagination. The nullable guard preserves backwards
  * compatibility in case the query returns no rows during bootstrapping.
  */
-export function countNets(): number {
-    const result = db.prepare<NetCountResult>(NET_TOTAL_SQL).get();
+export function countNets(userId: number): number {
+    const result = db.prepare<NetCountResult>(NET_TOTAL_SQL).get(userId);
     return result?.count ?? 0;
 }

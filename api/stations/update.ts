@@ -10,6 +10,7 @@ import {
     updateStationProfile
 } from '@netminder/dal';
 
+import type { AuthUser } from '../auth/middleware';
 import {
     errorResponse,
     type ErrorResponse
@@ -59,6 +60,7 @@ interface UpdateContext {
     params: UpdateParams;
     body: UpdateBody;
     set: Context['set'];
+    user?: AuthUser | null;
 }
 
 function hasProfileUpdates(body: UpdateBody): boolean {
@@ -72,7 +74,8 @@ function hasProfileUpdates(body: UpdateBody): boolean {
 export const updateHandler = async ({
     params,
     body,
-    set
+    set,
+    user
 }: UpdateContext): Promise<UpdateResponse | ErrorResponse> => {
     const decoded = decodeCallsignParam(params.callsign);
     if (!decoded) {
@@ -115,7 +118,7 @@ export const updateHandler = async ({
                 };
             }
 
-            const renameResult = await renameStation(normalized, trimmedNew);
+            const renameResult = await renameStation(normalized, trimmedNew, user?.userId ?? null);
             if (renameResult.status === 'not_found') {
                 set.status = 404;
                 return {

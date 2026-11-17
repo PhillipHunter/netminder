@@ -5,12 +5,15 @@ import {
 } from 'elysia';
 
 import {
+    findVisibleNetForCheckin,
     getMobilityEnabled,
     updateCheckinRecord
 } from '@netminder/dal';
 
+import type { AuthUser } from '../auth/middleware';
 import {
     errorResponse,
+    unauthorizedResponse,
     type ErrorResponse
 } from '../common/errors';
 import { parsePositiveInt } from '../common/validation';
@@ -33,7 +36,7 @@ export const updateContract = {
         mobility: t.Optional(mobilitySchema),
         staying: t.Optional(t.Boolean({ description: 'Update whether the station is staying for the remainder of the net' })),
         called_back: t.Optional(t.Boolean({ description: 'Flag indicating if net control has completed a callback with the station' })),
-        topic_answer: t.Optional(t.Union([t.String({ description: 'Updated answer to the current topic question' }), t.Null()], { description: 'Provide a string to set the topic answer or null to clear it' })),
+        topic_answer: t.Optional(t.Union([t.String({ description: 'Updated comments for the check-in' }), t.Null()], { description: 'Provide a string to set comments or null to clear them' })),
         operator_notes: t.Optional(t.Union([t.String({ description: 'Notes for operators managing the net' }), t.Null()], { description: 'Provide a string to set operator notes or null to clear them' }))
     }, { description: 'Fields that can be adjusted on an existing checkin' }),
     detail: {
@@ -55,6 +58,7 @@ export type UpdateResponse = Static<typeof updateContract.response[200]>;
 interface UpdateContext {
     params: UpdateParams;
     body: UpdateBody;
+    user?: AuthUser | null;
     set: Context['set'];
 }
 
@@ -62,7 +66,12 @@ function parseId(params: UpdateParams): number | null {
     return parsePositiveInt(params.id);
 }
 
-export const updateHandler = ({ params, body, set }: UpdateContext): UpdateResponse | ErrorResponse => {
+export const updateHandler = ({ params, body, user, set }: UpdateContext): UpdateResponse | ErrorResponse => {
+    if (!user) {
+        set.status = 401;
+        return unauthorizedResponse();
+    }
+
     const id = parseId(params);
     if (id === null) {
         set.status = 400;
@@ -70,6 +79,16 @@ export const updateHandler = ({ params, body, set }: UpdateContext): UpdateRespo
             error: {
                 code: 'INVALID_ID',
                 message: 'Invalid checkin ID'
+            }
+        };
+    }
+
+    if (!findVisibleNetForCheckin(id, user.userId)) {
+        set.status = 404;
+        return {
+            error: {
+                code: 'CHECKIN_NOT_FOUND',
+                message: 'Checkin not found'
             }
         };
     }
