@@ -4,7 +4,10 @@ import {
     type Static
 } from 'elysia';
 
-import { getStationStats } from '@netminder/dal';
+import {
+    getStationStats,
+    type StationStatsScope
+} from '@netminder/dal';
 
 import type { AuthUser } from '../auth/middleware';
 import { normalizeMobility } from '../checkins/schema';
@@ -29,7 +32,7 @@ export const statsContract = {
     }, { description: 'Route parameters identifying the station whose stats are requested' }),
     detail: {
         summary: 'Get station stats',
-        description: 'Provides aggregated participation metrics and recent checkins for a station, limited to nets visible to the requesting user.',
+        description: 'Provides aggregated participation metrics and recent checkins for a station in two scopes: `own` (nets created by the requesting user) and `visible` (all nets visible to the requesting user).',
         tags: ['Stations'] as string[]
     },
     response: {
@@ -48,6 +51,14 @@ interface StatsContext {
     user?: AuthUser | null;
     set: Context['set'];
 }
+
+const normalizeScope = (scope: StationStatsScope): StatsResponse['stats']['own'] => ({
+    ...scope,
+    recent: scope.recent.map(checkin => ({
+        ...checkin,
+        mobility: normalizeMobility(checkin.mobility)
+    }))
+});
 
 export const statsHandler = ({
     params,
@@ -87,10 +98,8 @@ export const statsHandler = ({
         return {
             stats: {
                 ...stats,
-                recent: stats.recent.map(checkin => ({
-                    ...checkin,
-                    mobility: normalizeMobility(checkin.mobility)
-                }))
+                own: normalizeScope(stats.own),
+                visible: normalizeScope(stats.visible)
             }
         };
     } catch (error) {

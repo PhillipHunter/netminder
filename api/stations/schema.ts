@@ -53,17 +53,22 @@ export const stationRecentCheckinSchema = t.Object({
     topic_answer: t.Nullable(t.String())
 });
 
+export const stationStatsScopeSchema = t.Object({
+    first_seen_at: t.Nullable(t.String({ description: 'Timestamp of the earliest check-in in this scope' })),
+    last_seen_at: t.Nullable(t.String({ description: 'Timestamp of the latest check-in in this scope' })),
+    total_checkins: t.Number({ description: 'Total number of check-ins in this scope' }),
+    recent: t.Array(stationRecentCheckinSchema, { description: 'Up to 10 most recent check-ins in this scope' })
+});
+
 export const stationStatsSchema = t.Object({
     callsign: t.String(),
     preferred_name: t.Nullable(t.String()),
     location: t.Nullable(t.String()),
     display_name: t.Nullable(t.String()),
     location_display: t.Nullable(t.String()),
-    first_seen_at: t.Nullable(t.String()),
-    last_seen_at: t.Nullable(t.String()),
-    total_checkins: t.Number(),
     qrz_enabled: t.Boolean(),
-    recent: t.Array(stationRecentCheckinSchema)
+    own: t.Object(stationStatsScopeSchema.properties, { description: 'Activity in nets created by the requesting user' }),
+    visible: t.Object(stationStatsScopeSchema.properties, { description: 'Activity across all nets visible to the requesting user (shared nets plus the user\'s own)' })
 });
 
 export type StationDetailSchema = typeof stationDetailSchema.static;
