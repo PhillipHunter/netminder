@@ -377,19 +377,32 @@ export const Dashboard = () => {
                                                 </td>
                                                 <td className='whitespace-nowrap px-4 py-3 text-sm'>
                                                     <div className='flex gap-2'>
-                                                        {net.is_owner && (
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (net.is_owner) {
                                                                     setNetToDelete(net);
-                                                                }}
-                                                                className='rounded p-1.5 text-red-400 hover:text-red-300 hover:bg-red-950/30 transition'
-                                                                title='Delete net'
-                                                                aria-label='Delete net'
-                                                            >
-                                                                <FaTrash size={14} />
-                                                            </button>
-                                                        )}
+                                                                }
+                                                            }}
+                                                            className={
+                                                                net.is_owner
+                                                                    ? 'rounded p-1.5 text-red-400 hover:text-red-300 hover:bg-red-950/30 transition'
+                                                                    : 'rounded p-1.5 text-slate-600 opacity-50 cursor-not-allowed'
+                                                            }
+                                                            title={
+                                                                net.is_owner
+                                                                    ? 'Delete net'
+                                                                    : 'Only the net creator can delete it'
+                                                            }
+                                                            aria-label={
+                                                                net.is_owner
+                                                                    ? 'Delete net'
+                                                                    : 'Delete net (only the net creator can delete it)'
+                                                            }
+                                                            aria-disabled={!net.is_owner}
+                                                        >
+                                                            <FaTrash size={14} />
+                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>
