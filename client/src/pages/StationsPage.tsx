@@ -290,7 +290,7 @@ export function StationsPage() {
                                                             e.stopPropagation();
                                                             setStationToDelete(station);
                                                         }}
-                                                        className='rounded p-1.5 text-red-400 hover:text-red-300 hover:bg-red-950/30 transition'
+                                                        className='rounded p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-950/30 transition'
                                                         title='Delete station'
                                                         aria-label='Delete station'
                                                     >
