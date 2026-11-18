@@ -54,6 +54,7 @@ export interface CoverageView {
 interface CheckinMapProps {
     checkins: Checkin[];
     radarEnabled: boolean;
+    showLabels: boolean;
     coverage?: CoverageView;
 }
 
@@ -102,7 +103,7 @@ function buildPopup(item: LocatedCheckin): HTMLElement {
     return root;
 }
 
-function buildMarker(item: LocatedCheckin, latLng: L.LatLng, direction: L.Direction = 'right', isNcs = false): L.CircleMarker {
+function buildMarker(item: LocatedCheckin, latLng: L.LatLng, direction: L.Direction = 'right', isNcs = false, showLabels = true): L.CircleMarker {
     const approximate = APPROXIMATE_PRECISIONS.includes(item.checkin.location_precision ?? '');
     const marker = L.circleMarker(latLng, {
         radius: 7,
@@ -113,7 +114,7 @@ function buildMarker(item: LocatedCheckin, latLng: L.LatLng, direction: L.Direct
         fillOpacity: approximate ? 0.05 : 0.85
     });
     marker.bindTooltip(isNcs ? `${item.checkin.callsign} (NCS)` : item.checkin.callsign, {
-        permanent: true,
+        permanent: showLabels,
         direction,
         offset: LABEL_OFFSETS[direction]
     });
@@ -121,7 +122,7 @@ function buildMarker(item: LocatedCheckin, latLng: L.LatLng, direction: L.Direct
     return marker;
 }
 
-function addMarker(layer: L.LayerGroup, item: LocatedCheckin, latLng: L.LatLng, direction: L.Direction, isNcs: boolean): void {
+function addMarker(layer: L.LayerGroup, item: LocatedCheckin, latLng: L.LatLng, direction: L.Direction, isNcs: boolean, showLabels: boolean): void {
     if (isNcs) {
         L.circleMarker(latLng, {
             radius: 12,
@@ -131,10 +132,10 @@ function addMarker(layer: L.LayerGroup, item: LocatedCheckin, latLng: L.LatLng, 
             interactive: false
         }).addTo(layer);
     }
-    buildMarker(item, latLng, direction, isNcs).addTo(layer);
+    buildMarker(item, latLng, direction, isNcs, showLabels).addTo(layer);
 }
 
-export function CheckinMap({ checkins, radarEnabled, coverage }: CheckinMapProps) {
+export function CheckinMap({ checkins, radarEnabled, showLabels, coverage }: CheckinMapProps) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<L.Map | null>(null);
     const markerLayerRef = useRef<L.LayerGroup | null>(null);
@@ -210,7 +211,7 @@ export function CheckinMap({ checkins, radarEnabled, coverage }: CheckinMapProps
             return;
 
         // Polling hands us a new array every few seconds; skip rebuilding (and closing open popups) unless something shown changed
-        const renderKey = `${netControlId}\n${checkins
+        const renderKey = `${netControlId}\n${showLabels}\n${checkins
             .map(c => [c.id, c.callsign, c.display_name, c.location_display, c.latitude, c.longitude, c.location_source, c.location_precision].join('|'))
             .join('\n')}`;
         if (renderKey === renderKeyRef.current)
@@ -235,7 +236,7 @@ export function CheckinMap({ checkins, radarEnabled, coverage }: CheckinMapProps
                 const first = group[0];
 
                 if (group.length === 1) {
-                    addMarker(layer, first, L.latLng(first.lat, first.lon), 'right', first.checkin.id === netControlId);
+                    addMarker(layer, first, L.latLng(first.lat, first.lon), 'right', first.checkin.id === netControlId, showLabels);
                     continue;
                 }
 
@@ -258,7 +259,7 @@ export function CheckinMap({ checkins, radarEnabled, coverage }: CheckinMapProps
                         opacity: 0.8,
                         interactive: false
                     }).addTo(layer);
-                    addMarker(layer, item, spread, labelDirection(offset), item.checkin.id === netControlId);
+                    addMarker(layer, item, spread, labelDirection(offset), item.checkin.id === netControlId, showLabels);
                 });
             }
         };
@@ -270,7 +271,7 @@ export function CheckinMap({ checkins, radarEnabled, coverage }: CheckinMapProps
             hasFitRef.current = true;
             fitAll();
         }
-    }, [checkins, fitAll, netControlId]);
+    }, [checkins, fitAll, netControlId, showLabels]);
 
     const hullPoints = coverage?.showHull ? coverage.result.hull : null;
     const heatPoints = coverage?.showHeat ? coverage.result.heatPoints : null;
