@@ -9,7 +9,7 @@ import {
     getLocationWithSuffixFromSource
 } from './stationHelpers';
 
-export type LocationSource = 'qrz' | 'grid';
+export type LocationSource = 'qrz' | 'geocoded' | 'grid';
 export type LocationPrecision = 'address' | 'zip' | 'grid' | 'state' | 'country' | 'unknown';
 
 export interface CheckinRow {
@@ -46,6 +46,8 @@ interface JoinedCheckinRow {
     station_preferred_name: string | null;
     station_location: string | null;
     station_qrz_data: string | null;
+    station_geocoded_lat: number | null;
+    station_geocoded_lon: number | null;
 }
 
 interface ResolvedLocation {
@@ -76,17 +78,43 @@ function qrzPrecision(geoloc: string | undefined): LocationPrecision {
     return QRZ_GEOLOC_PRECISION.get((geoloc ?? '').trim().toLowerCase()) ?? 'unknown';
 }
 
-function resolveLocation(qrzData: string | null): ResolvedLocation {
+function resolveLocation(
+    qrzData: string | null,
+    geocodedLat: number | null,
+    geocodedLon: number | null
+): ResolvedLocation {
     const parsed = parseQrzData(qrzData);
     const lat = parseCoordinate(parsed?.raw?.lat, 90);
     const lon = parseCoordinate(parsed?.raw?.lon, 180);
+    const qrzLevel = qrzPrecision(parsed?.raw?.geoloc);
+    const hasQrzCoordinates = lat !== null && lon !== null;
 
-    if (lat !== null && lon !== null) {
+    if (hasQrzCoordinates && qrzLevel === 'address') {
         return {
             latitude: lat,
             longitude: lon,
             location_source: 'qrz',
-            location_precision: qrzPrecision(parsed?.raw?.geoloc)
+            location_precision: 'address'
+        };
+    }
+
+    const gLat = parseCoordinate(geocodedLat ?? undefined, 90);
+    const gLon = parseCoordinate(geocodedLon ?? undefined, 180);
+    if (gLat !== null && gLon !== null) {
+        return {
+            latitude: gLat,
+            longitude: gLon,
+            location_source: 'geocoded',
+            location_precision: 'address'
+        };
+    }
+
+    if (hasQrzCoordinates) {
+        return {
+            latitude: lat,
+            longitude: lon,
+            location_source: 'qrz',
+            location_precision: qrzLevel
         };
     }
 
@@ -122,7 +150,7 @@ function mapRow(row: JoinedCheckinRow): CheckinRow {
         callsign: row.callsign,
         display_name: getDisplayNameWithSuffixFromSource(stationSource),
         location_display: getLocationWithSuffixFromSource(stationSource),
-        ...resolveLocation(row.station_qrz_data),
+        ...resolveLocation(row.station_qrz_data, row.station_geocoded_lat, row.station_geocoded_lon),
         time_entered: row.time_entered,
         mobility: row.mobility,
         staying: row.staying === 1,
@@ -138,7 +166,9 @@ export function listCheckinsByNet(netId: number): CheckinRow[] {
             c.*,
             s.preferred_name AS station_preferred_name,
             s.location AS station_location,
-            s.qrz_data AS station_qrz_data
+            s.qrz_data AS station_qrz_data,
+            s.geocoded_lat AS station_geocoded_lat,
+            s.geocoded_lon AS station_geocoded_lon
         FROM checkins c
         LEFT JOIN stations s ON c.station_id = s.id
         WHERE c.net_id = ?

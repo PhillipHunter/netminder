@@ -338,9 +338,14 @@ export async function fetchAppConfig(): Promise<AppConfig> {
     return data.config;
 }
 
-export async function updateAppSettings(payload: settings.UpdateAppBody): Promise<AppConfig> {
-    const data = await unwrapResponse<settings.UpdateAppResponse>(backend.api.settings.app.put(payload), 'Failed to update app settings');
-    return data.config;
+export type GeocodingStatus = settings.GetAppResponse['geocoding_status'];
+
+export async function fetchAppSettings(): Promise<settings.GetAppResponse> {
+    return unwrapResponse<settings.GetAppResponse>(backend.api.settings.app.get(), 'Failed to load app settings');
+}
+
+export async function updateAppSettings(payload: settings.UpdateAppBody): Promise<settings.UpdateAppResponse> {
+    return unwrapResponse<settings.UpdateAppResponse>(backend.api.settings.app.put(payload), 'Failed to update app settings');
 }
 
 export async function deleteNet(id: number): Promise<void> {

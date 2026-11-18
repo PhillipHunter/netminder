@@ -88,7 +88,9 @@ function buildPopup(item: LocatedCheckin): HTMLElement {
         checkin.display_name,
         checkin.location_display,
         `Location: ${item.lat.toFixed(4)}, ${item.lon.toFixed(4)}`,
-        PRECISION_NOTES[checkin.location_precision ?? 'address'] ?? null
+        checkin.location_source === 'geocoded'
+            ? 'Geocoded from street address (OpenStreetMap)'
+            : PRECISION_NOTES[checkin.location_precision ?? 'address'] ?? null
     ];
     for (const line of lines) {
         if (!line)

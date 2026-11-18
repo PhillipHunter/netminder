@@ -14,6 +14,7 @@ import { useAuth } from './AuthContext';
 
 interface AppConfigContextType {
     mobilityEnabled: boolean;
+    geocodingEnabled: boolean;
     refresh: () => Promise<void>;
 }
 
@@ -35,20 +36,24 @@ export function AppConfigProvider({ children }: AppConfigProviderProps) {
     const { user } = useAuth();
     const userId = user?.id ?? null;
     const [mobilityEnabled, setMobilityEnabled] = useState(true);
+    const [geocodingEnabled, setGeocodingEnabled] = useState(false);
 
     const refresh = useCallback(async () => {
         try {
             const config = await fetchAppConfig();
             setMobilityEnabled(config.mobility_enabled);
+            setGeocodingEnabled(config.geocoding_enabled);
         } catch (error) {
             console.error('Failed to load app config:', error);
             setMobilityEnabled(true);
+            setGeocodingEnabled(false);
         }
     }, []);
 
     useEffect(() => {
         if (userId === null) {
             setMobilityEnabled(true);
+            setGeocodingEnabled(false);
             return;
         }
 
@@ -57,8 +62,9 @@ export function AppConfigProvider({ children }: AppConfigProviderProps) {
 
     const value = useMemo<AppConfigContextType>(() => ({
         mobilityEnabled,
+        geocodingEnabled,
         refresh
-    }), [mobilityEnabled, refresh]);
+    }), [mobilityEnabled, geocodingEnabled, refresh]);
 
     return <AppConfigContext.Provider value={value}>{children}</AppConfigContext.Provider>;
 }

@@ -8,7 +8,10 @@ import { Elysia } from 'elysia';
 
 import { routes as apiRoutes } from '@netminder/api';
 import clientHTML from '@netminder/client/index.html';
-import { initDatabase } from '@netminder/dal';
+import {
+    initDatabase,
+    startGeocodingBackfill
+} from '@netminder/dal';
 
 // Environment configuration
 const PORT = parseInt(process.env.PORT ?? '8080', 10);
@@ -49,6 +52,7 @@ console.log(`Starting NetMinder server in ${NODE_ENV} mode...`);
 // Initialize database schema
 console.log('Initializing database...');
 initDatabase();
+startGeocodingBackfill();
 
 // Create and configure the Elysia app
 new Elysia()

@@ -7,6 +7,8 @@ import {
 import type { Station } from '../db';
 import { db } from '../db';
 
+import { stationAddressFor } from './geocode';
+import { enqueueStationGeocode } from './geocodeQueue';
 import {
     findStationByCallsign,
     normalizeCallsign
@@ -50,6 +52,11 @@ export function createOrUpdateStationRecord(
         if (data.qrz_data !== undefined) {
             updates.push('qrz_data = ?');
             values.push(data.qrz_data);
+
+            const nextAddress = stationAddressFor(data.qrz_data);
+            if (nextAddress && nextAddress.key !== stationAddressFor(existing.qrz_data)?.key) {
+                updates.push('geocoded_lat = NULL', 'geocoded_lon = NULL', 'geocoded_at = NULL');
+            }
         }
 
         if (data.qrz_last_fetched_at !== undefined) {
@@ -66,6 +73,10 @@ export function createOrUpdateStationRecord(
         const updated = findStationByCallsign(normalizedCallsign);
         if (!updated) {
             throw new Error(`Failed to retrieve updated station: ${normalizedCallsign}`);
+        }
+
+        if (data.qrz_data !== undefined) {
+            enqueueStationGeocode(updated.id);
         }
 
         return updated;
@@ -98,6 +109,10 @@ export function createOrUpdateStationRecord(
     const created = findStationByCallsign(normalizedCallsign);
     if (!created) {
         throw new Error(`Failed to retrieve created station: ${normalizedCallsign}`);
+    }
+
+    if (data.qrz_data) {
+        enqueueStationGeocode(created.id);
     }
 
     return created;

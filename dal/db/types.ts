@@ -31,6 +31,9 @@ export interface Station {
     notes: string | null;
     qrz_data: string | null;
     qrz_last_fetched_at: string | null;
+    geocoded_lat: number | null;
+    geocoded_lon: number | null;
+    geocoded_at: string | null;
     created_at: string;
     updated_at: string;
 }

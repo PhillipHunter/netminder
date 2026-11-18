@@ -30,6 +30,7 @@ export const checkinSchema = t.Object({
     longitude: t.Nullable(t.Number({ description: 'Longitude of the station in decimal degrees, from QRZ or the grid square center' })),
     location_source: t.Nullable(t.Union([
         t.Literal('qrz', { description: 'Coordinates registered with QRZ' }),
+        t.Literal('geocoded', { description: 'Geocoded from the registered street address with OpenStreetMap Nominatim' }),
         t.Literal('grid', { description: 'Approximate: center of the Maidenhead grid square' })
     ], { description: 'Where the coordinates came from; null when the station has no known location' })),
     location_precision: t.Nullable(t.Union([

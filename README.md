@@ -10,6 +10,7 @@ NetMinder helps amateur radio net control operators manage nets, station check-i
 - View station history (split into "Your nets" and "All visible nets") and export net records as CSV
 - Map a net's check-ins from QRZ coordinates (or grid square center), with an optional NEXRAD radar overlay and a pop-out window
 - Look up callsigns through optional QRZ integration
+- Optionally geocode QRZ street addresses with OpenStreetMap Nominatim for address-level map positions (administrator setting, off by default)
 - Manage operator accounts and administrator access
 - Run locally or in Docker with persistent SQLite storage
 
@@ -77,6 +78,8 @@ docker run -d \
 | `DATABASE_PATH` | `./data/netminder.sqlite3` | SQLite database path |
 | `JWT_SECRET` | Development fallback | Signing secret; required in production |
 | `CONFIG_ENCRYPTION_KEY` | Development fallback | Encrypts stored QRZ credentials; required in production |
+| `GEOCODER_URL` | `https://nominatim.openstreetmap.org` | Optional; Nominatim-compatible geocoder used when address geocoding is enabled |
+| `GEOCODER_EMAIL` | Unset | Optional; contact email sent with geocoder requests |
 
 Environment files, databases, backups, and private keys are excluded from Git. `.env.example` contains placeholders only.
 
