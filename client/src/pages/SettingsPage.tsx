@@ -668,7 +668,8 @@ function MapSection() {
         <section className={SECTION_CLASS}>
             <h2 className='text-lg font-semibold text-slate-100'>Map</h2>
             <p className='mt-1 mb-6 text-sm text-slate-400'>
-                Dark mode uses a darkened OpenStreetMap. Add a free CARTO basemaps key for the CARTO Dark Matter map instead.
+                Users pick a map theme on the map: Light, Inverted or Dark Matter. Add a free CARTO basemaps key to make the
+                CARTO Dark Matter theme available.
                 <br />
                 <a
                     href='https://carto.com/basemaps/apikey'
@@ -726,9 +727,9 @@ function MapSection() {
                     </form>
 
                     <p className='text-sm text-slate-300'>
-                        In use:
-                        {' '}
-                        {keySet ? 'CARTO Dark Matter' : 'darkened OpenStreetMap'}
+                        {keySet
+                            ? 'Dark Matter theme: available to all users in the map theme menu'
+                            : 'Dark Matter theme: unavailable until a key is added'}
                     </p>
 
                     {keySet && previewUrl && (
