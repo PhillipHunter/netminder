@@ -4,23 +4,24 @@ import {
 } from 'elysia';
 
 import {
+    getCartoApiKey,
     getGeocodingEnabled,
     getMobilityEnabled
 } from '@netminder/dal';
 
 import {
-    appConfigResponseSchema,
+    clientConfigResponseSchema,
     errorResponse
 } from './schema';
 
 export const getContract = {
     detail: {
         summary: 'Get instance configuration',
-        description: 'Returns non-secret instance settings the client needs, such as whether mobility tracking and address geocoding are enabled. Available to any signed-in user.',
+        description: 'Returns non-secret instance settings the client needs, such as whether mobility tracking and address geocoding are enabled and the optional CARTO basemaps API key for the Dark Matter map theme. Available to any signed-in user.',
         tags: ['Config'] as string[]
     },
     response: {
-        200: appConfigResponseSchema,
+        200: clientConfigResponseSchema,
         500: errorResponse
     }
 } as const;
@@ -35,7 +36,8 @@ export const getHandler = ({ set }: GetContext): GetResponse | GetErrorResponse 
         return {
             config: {
                 mobility_enabled: getMobilityEnabled(),
-                geocoding_enabled: getGeocodingEnabled()
+                geocoding_enabled: getGeocodingEnabled(),
+                carto_api_key: getCartoApiKey()
             }
         };
     } catch (error) {

@@ -9,6 +9,7 @@ import type {
     Checkin,
     Net
 } from '../api';
+import { useAppConfig } from '../contexts/AppConfigContext';
 import { computeCoverage } from '../utils/coverage';
 import {
     exportCoverageGeoJson,
@@ -17,6 +18,10 @@ import {
 } from '../utils/coverageExport';
 
 import { CheckinMap } from './CheckinMap';
+import {
+    MAP_THEMES,
+    type MapTheme
+} from './mapShared';
 
 interface NetMapViewProps {
     checkins: Checkin[];
@@ -26,6 +31,8 @@ interface NetMapViewProps {
 const RADAR_STORAGE_KEY = 'netminder.map.radar';
 const PINS_STORAGE_KEY = 'netminder.map.pins';
 const COVERAGE_STORAGE_KEY = 'netminder.map.coverage';
+const DARK_STORAGE_KEY = 'netminder.map.dark';
+const THEME_STORAGE_KEY = 'netminder.map.theme';
 
 function readRadarPreference(): boolean {
     try {
@@ -43,6 +50,20 @@ function readPinsPreference(): boolean {
     }
 }
 
+function readThemePreference(): MapTheme {
+    try {
+        const stored = localStorage.getItem(THEME_STORAGE_KEY);
+        const known = MAP_THEMES.find(theme => theme.id === stored);
+        if (known)
+            return known.id;
+        if (localStorage.getItem(DARK_STORAGE_KEY) === '0')
+            return 'light';
+    } catch {
+        // Preference is optional; ignore storage failures
+    }
+    return 'inverted';
+}
+
 function readCoveragePreference(): boolean {
     try {
         return localStorage.getItem(COVERAGE_STORAGE_KEY) === '1';
@@ -54,9 +75,12 @@ function readCoveragePreference(): boolean {
 const EXPORT_BUTTON_CLASS = 'flex items-center gap-1.5 rounded-lg border border-slate-700/70 px-2.5 py-1 text-xs text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50';
 
 export function NetMapView({ checkins, net = null }: NetMapViewProps) {
+    const { cartoApiKey } = useAppConfig();
     const [radarEnabled, setRadarEnabled] = useState<boolean>(readRadarPreference);
     const [pinsEnabled, setPinsEnabled] = useState<boolean>(readPinsPreference);
     const [coverageEnabled, setCoverageEnabled] = useState<boolean>(readCoveragePreference);
+    const [mapTheme, setMapTheme] = useState<MapTheme>(readThemePreference);
+    const effectiveTheme: MapTheme = mapTheme === 'dark-matter' && !cartoApiKey ? 'inverted' : mapTheme;
     const [netControlId, setNetControlId] = useState<number | null>(null);
     const [showHull, setShowHull] = useState(true);
     const [showHeat, setShowHeat] = useState(true);
@@ -87,6 +111,14 @@ export function NetMapView({ checkins, net = null }: NetMapViewProps) {
         }
     }, [coverageEnabled]);
 
+    useEffect(() => {
+        try {
+            localStorage.setItem(THEME_STORAGE_KEY, mapTheme);
+        } catch {
+            // Preference is optional; ignore storage failures
+        }
+    }, [mapTheme]);
+
     const result = useMemo(() => computeCoverage(checkins, netControlId), [checkins, netControlId]);
     const locatedStations = useMemo(
         () => [...result.stations].sort((a, b) => a.checkin.callsign.localeCompare(b.checkin.callsign)),
@@ -97,7 +129,7 @@ export function NetMapView({ checkins, net = null }: NetMapViewProps) {
         setExporting(true);
         setExportError(null);
         try {
-            await exportCoveragePng(result, net, { showHull, showHeat, showPins: pinsEnabled });
+            await exportCoveragePng(result, net, { showHull, showHeat, showPins: pinsEnabled, theme: effectiveTheme, cartoKey: cartoApiKey });
         } catch (error) {
             console.error('Error exporting coverage PNG:', error);
             setExportError('PNG export failed');
@@ -230,6 +262,9 @@ export function NetMapView({ checkins, net = null }: NetMapViewProps) {
                     checkins={checkins}
                     radarEnabled={radarEnabled}
                     showPins={pinsEnabled}
+                    mapTheme={effectiveTheme}
+                    cartoKey={cartoApiKey}
+                    onThemeChange={setMapTheme}
                     coverage={coverageEnabled ? { result, net, showHull, showHeat } : undefined}
                 />
             </div>

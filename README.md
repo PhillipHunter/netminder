@@ -8,7 +8,7 @@ NetMinder helps amateur radio net control operators manage nets, station check-i
 - Track station check-ins, callsigns, names, locations, and comments
 - Optionally track fixed, mobile, and portable check-ins; admins can turn this off under Settings (Enable mobility tracking), which hides mobility controls while keeping stored data
 - View station history (split into "Your nets" and "All visible nets") and export net records as CSV
-- Map a net's check-ins from QRZ coordinates (or grid square center), with an optional NEXRAD radar overlay and a pop-out window
+- Map a net's check-ins from QRZ coordinates (or grid square center), with an optional NEXRAD radar overlay and a pop-out window. The **Map** menu under **Fit all** picks a theme (remembered per browser): **Inverted** (default, darkened OpenStreetMap), **Light** (regular OpenStreetMap), or **Dark Matter** (CARTO, needs the admin's CARTO key)
 - Turn on Coverage mode on the net map to pick net control, see an estimated coverage area and heatmap, and export a PNG, KML, or GeoJSON
 - Look up callsigns through optional QRZ integration
 - Optionally geocode QRZ street addresses with OpenStreetMap Nominatim for address-level map positions (administrator setting, off by default)
@@ -50,7 +50,8 @@ Turn on **Coverage** on the net map (panel or pop-out) to estimate how far a net
 - **Heatmap:** density of address-level check-ins, drawn with a fixed 5 km radius at every zoom level.
 - **Farthest station:** the address-level station farthest from net control, by great-circle distance.
 - **Approximate positions** (ZIP, grid square, state, country) are still shown with dashed markers but are excluded from the hull, heatmap and distances. If net control itself is approximate, distances are flagged as estimates.
-- **Exports:** PNG (OpenStreetMap tiles, hull, heatmap, summary), KML and GeoJSON, named `net-YYYY-MM-DD-coverage.*`. Radar is never included.
+- **Map themes (optional CARTO key):** Inverted is the default and darkens OpenStreetMap tiles in the browser; Light is plain OpenStreetMap. An admin can add a free CARTO basemaps API key under **Settings → Map** (get one at https://carto.com/basemaps/apikey) to enable the **Dark Matter** theme (CARTO Dark Matter), including in PNG exports. Without a key, Dark Matter is greyed out in the menu and a stored Dark Matter choice falls back to Inverted. The key is stored as plain text and sent to signed-in browsers in tile URLs.
+- **Exports:** PNG (tiles in the selected map theme, hull, heatmap, summary), KML and GeoJSON, named `net-YYYY-MM-DD-coverage.*`. Radar is never included.
 
 ## Docker deployment
 

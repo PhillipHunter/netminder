@@ -7,9 +7,11 @@ import {
     useState
 } from 'react';
 import {
+    FaCheck,
     FaChevronDown,
     FaChevronUp,
-    FaExpand
+    FaExpand,
+    FaPalette
 } from 'react-icons/fa';
 
 import type { Checkin } from '../api';
@@ -25,17 +27,18 @@ import {
     APPROXIMATE_PRECISIONS,
     HULL_COLOR,
     LABEL_OFFSETS,
-    LEADER_COLOR,
+    MAP_THEMES,
     MARKER_COLOR,
     MARKER_FILL,
     NCS_COLOR,
-    OSM_ATTRIBUTION,
-    OSM_URL,
     PRECISION_NOTES,
+    baseMapFor,
     clusterByPixel,
     labelDirection,
+    mapColorsFor,
     ringOffset,
-    type LocatedCheckin
+    type LocatedCheckin,
+    type MapTheme
 } from './mapShared';
 
 interface CoverageNet {
@@ -55,6 +58,9 @@ interface CheckinMapProps {
     checkins: Checkin[];
     radarEnabled: boolean;
     showPins: boolean;
+    mapTheme: MapTheme;
+    cartoKey: string | null;
+    onThemeChange: (theme: MapTheme) => void;
     coverage?: CoverageView;
 }
 
@@ -105,11 +111,11 @@ function buildPopup(item: LocatedCheckin): HTMLElement {
     return root;
 }
 
-function buildMarker(item: LocatedCheckin, latLng: L.LatLng, direction: L.Direction = 'right', isNcs = false): L.CircleMarker {
+function buildMarker(item: LocatedCheckin, latLng: L.LatLng, direction: L.Direction, isNcs: boolean, theme: MapTheme): L.CircleMarker {
     const approximate = APPROXIMATE_PRECISIONS.includes(item.checkin.location_precision ?? '');
     const marker = L.circleMarker(latLng, {
         radius: 7,
-        color: isNcs ? NCS_COLOR : MARKER_COLOR,
+        color: isNcs ? NCS_COLOR : approximate ? mapColorsFor(theme).approximateStroke : MARKER_COLOR,
         weight: 2,
         dashArray: approximate ? '3 3' : undefined,
         fillColor: isNcs ? NCS_COLOR : MARKER_FILL,
@@ -124,7 +130,7 @@ function buildMarker(item: LocatedCheckin, latLng: L.LatLng, direction: L.Direct
     return marker;
 }
 
-function addMarker(layer: L.LayerGroup, item: LocatedCheckin, latLng: L.LatLng, direction: L.Direction, isNcs: boolean): void {
+function addMarker(layer: L.LayerGroup, item: LocatedCheckin, latLng: L.LatLng, direction: L.Direction, isNcs: boolean, theme: MapTheme): void {
     if (isNcs) {
         L.circleMarker(latLng, {
             radius: 12,
@@ -134,12 +140,14 @@ function addMarker(layer: L.LayerGroup, item: LocatedCheckin, latLng: L.LatLng, 
             interactive: false
         }).addTo(layer);
     }
-    buildMarker(item, latLng, direction, isNcs).addTo(layer);
+    buildMarker(item, latLng, direction, isNcs, theme).addTo(layer);
 }
 
-export function CheckinMap({ checkins, radarEnabled, showPins, coverage }: CheckinMapProps) {
+export function CheckinMap({ checkins, radarEnabled, showPins, mapTheme, cartoKey, onThemeChange, coverage }: CheckinMapProps) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<L.Map | null>(null);
+    const baseLayerRef = useRef<L.TileLayer | null>(null);
+    const baseUrlRef = useRef<string | null>(null);
     const markerLayerRef = useRef<L.LayerGroup | null>(null);
     const coverageLayerRef = useRef<L.LayerGroup | null>(null);
     const [legendPreference, setLegendPreference] = useState<boolean | null>(readLegendPreference);
@@ -156,12 +164,6 @@ export function CheckinMap({ checkins, radarEnabled, showPins, coverage }: Check
             return;
 
         const map = L.map(container, { zoomControl: true }).setView([39, -98], 4);
-        L.tileLayer(OSM_URL, {
-            maxZoom: 19,
-            attribution: OSM_ATTRIBUTION,
-            referrerPolicy: 'strict-origin-when-cross-origin'
-        }).addTo(map);
-
         coverageLayerRef.current = L.layerGroup().addTo(map);
         markerLayerRef.current = L.layerGroup().addTo(map);
         mapRef.current = map;
@@ -184,12 +186,42 @@ export function CheckinMap({ checkins, radarEnabled, showPins, coverage }: Check
             map.off('zoomend', handleZoomEnd);
             map.remove();
             mapRef.current = null;
+            baseLayerRef.current = null;
+            baseUrlRef.current = null;
             markerLayerRef.current = null;
             coverageLayerRef.current = null;
             hasFitRef.current = false;
             renderKeyRef.current = null;
         };
     }, []);
+
+    useEffect(() => {
+        const map = mapRef.current;
+        const container = containerRef.current;
+        if (!map || !container)
+            return;
+
+        const base = baseMapFor(mapTheme, cartoKey);
+        container.style.background = base.background;
+        if (baseLayerRef.current && baseUrlRef.current !== base.url) {
+            baseLayerRef.current.remove();
+            baseLayerRef.current = null;
+        }
+        if (!baseLayerRef.current) {
+            baseUrlRef.current = base.url;
+            baseLayerRef.current = L.tileLayer(base.url, {
+                attribution: base.attribution,
+                subdomains: base.subdomains,
+                maxZoom: 19,
+                className: 'netminder-base-tiles',
+                referrerPolicy: 'strict-origin-when-cross-origin'
+            }).addTo(map);
+            baseLayerRef.current.bringToBack();
+        }
+        const tiles = baseLayerRef.current.getContainer();
+        if (tiles)
+            tiles.style.filter = base.filter;
+    }, [mapTheme, cartoKey]);
 
     const fitAll = useCallback(() => {
         const map = mapRef.current;
@@ -213,7 +245,7 @@ export function CheckinMap({ checkins, radarEnabled, showPins, coverage }: Check
             return;
 
         // Polling hands us a new array every few seconds; skip rebuilding (and closing open popups) unless something shown changed
-        const renderKey = `${netControlId}\n${showPins}\n${checkins
+        const renderKey = `${netControlId}\n${showPins}\n${mapTheme}\n${checkins
             .map(c => [c.id, c.callsign, c.display_name, c.location_display, c.latitude, c.longitude, c.location_source, c.location_precision].join('|'))
             .join('\n')}`;
         if (renderKey === renderKeyRef.current)
@@ -230,6 +262,7 @@ export function CheckinMap({ checkins, radarEnabled, showPins, coverage }: Check
                 });
             }
         }
+        const leaderColor = mapColorsFor(mapTheme).leader;
         const render = () => {
             layer.clearLayers();
             if (!showPins)
@@ -240,7 +273,7 @@ export function CheckinMap({ checkins, radarEnabled, showPins, coverage }: Check
                 const first = group[0];
 
                 if (group.length === 1) {
-                    addMarker(layer, first, L.latLng(first.lat, first.lon), 'right', first.checkin.id === netControlId);
+                    addMarker(layer, first, L.latLng(first.lat, first.lon), 'right', first.checkin.id === netControlId, mapTheme);
                     continue;
                 }
 
@@ -251,19 +284,19 @@ export function CheckinMap({ checkins, radarEnabled, showPins, coverage }: Check
                     const spread = map.layerPointToLatLng(centroid.add(offset));
                     L.circleMarker(trueLatLng, {
                         radius: 2.5,
-                        color: LEADER_COLOR,
+                        color: leaderColor,
                         weight: 1,
-                        fillColor: LEADER_COLOR,
+                        fillColor: leaderColor,
                         fillOpacity: 1,
                         interactive: false
                     }).addTo(layer);
                     L.polyline([trueLatLng, spread], {
-                        color: LEADER_COLOR,
+                        color: leaderColor,
                         weight: 1.5,
                         opacity: 0.8,
                         interactive: false
                     }).addTo(layer);
-                    addMarker(layer, item, spread, labelDirection(offset), item.checkin.id === netControlId);
+                    addMarker(layer, item, spread, labelDirection(offset), item.checkin.id === netControlId, mapTheme);
                 });
             }
         };
@@ -275,7 +308,7 @@ export function CheckinMap({ checkins, radarEnabled, showPins, coverage }: Check
             hasFitRef.current = true;
             fitAll();
         }
-    }, [checkins, fitAll, netControlId, showPins]);
+    }, [checkins, mapTheme, fitAll, netControlId, showPins]);
 
     const hullPoints = coverage?.showHull ? coverage.result.hull : null;
     const heatPoints = coverage?.showHeat ? coverage.result.heatPoints : null;
@@ -349,6 +382,7 @@ export function CheckinMap({ checkins, radarEnabled, showPins, coverage }: Check
                 <FaExpand />
                 Fit all
             </button>
+            <ThemeMenu theme={mapTheme} cartoKey={cartoKey} onChange={onThemeChange} />
             {coverage && (
                 <CoverageLegend
                     coverage={coverage}
@@ -405,6 +439,89 @@ function CoverageLegend({ coverage, open, onToggle }: { coverage: CoverageView; 
                         )}
                         {layerLines.map(line => <div key={line}>{line}</div>)}
                     </div>
+                </div>
+            )}
+        </div>
+    );
+}
+function ThemeMenu({ theme, cartoKey, onChange }: { theme: MapTheme; cartoKey: string | null; onChange: (theme: MapTheme) => void }) {
+    const rootRef = useRef<HTMLDivElement | null>(null);
+    const [open, setOpen] = useState(false);
+    const current = MAP_THEMES.find(t => t.id === theme) ?? MAP_THEMES[0];
+
+    useEffect(() => {
+        const root = rootRef.current;
+        if (!root)
+            return;
+        L.DomEvent.disableClickPropagation(root);
+        L.DomEvent.disableScrollPropagation(root);
+    }, []);
+
+    useEffect(() => {
+        if (!open)
+            return;
+        const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+            if (rootRef.current && !rootRef.current.contains(event.target as Node))
+                setOpen(false);
+        };
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape')
+                setOpen(false);
+        };
+        document.addEventListener('mousedown', handlePointerDown);
+        document.addEventListener('touchstart', handlePointerDown);
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('mousedown', handlePointerDown);
+            document.removeEventListener('touchstart', handlePointerDown);
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [open]);
+
+    return (
+        <div ref={rootRef} className='absolute right-3 top-14 z-[1000] flex flex-col items-end'>
+            <button
+                type='button'
+                onClick={() => {
+                    setOpen(value => !value);
+                }}
+                aria-haspopup='menu'
+                aria-expanded={open}
+                className='flex items-center gap-2 rounded-lg border border-slate-700/70 bg-slate-900/90 px-3 py-1.5 text-xs text-slate-200 shadow-md shadow-black/30 transition-colors hover:border-slate-600 hover:bg-slate-800'
+            >
+                <FaPalette />
+                {`Map: ${current.label}`}
+                {open ? <FaChevronUp /> : <FaChevronDown />}
+            </button>
+            {open && (
+                <div
+                    role='menu'
+                    aria-label='Map theme'
+                    className='mt-1 min-w-full overflow-hidden rounded-lg border border-slate-700/70 bg-slate-900/95 py-1 text-xs text-slate-200 shadow-md shadow-black/30'
+                >
+                    {MAP_THEMES.map((item) => {
+                        const unavailable = item.id === 'dark-matter' && !cartoKey;
+                        return (
+                            <button
+                                key={item.id}
+                                type='button'
+                                role='menuitemradio'
+                                aria-checked={item.id === theme}
+                                aria-disabled={unavailable ? 'true' : undefined}
+                                title={unavailable ? 'Ask an admin to add a CARTO key in Settings → Map' : undefined}
+                                onClick={() => {
+                                    if (unavailable)
+                                        return;
+                                    onChange(item.id);
+                                    setOpen(false);
+                                }}
+                                className={`flex w-full items-center gap-2 whitespace-nowrap px-3 py-1.5 text-left ${unavailable ? 'cursor-not-allowed text-slate-500' : 'hover:bg-slate-800'}`}
+                            >
+                                <span className='inline-block w-3 text-indigo-300'>{item.id === theme && <FaCheck />}</span>
+                                {item.label}
+                            </button>
+                        );
+                    })}
                 </div>
             )}
         </div>

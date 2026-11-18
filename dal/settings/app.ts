@@ -52,3 +52,23 @@ export function setGeocodingEnabled(enabled: boolean): void {
     const { upsert } = requireStatements();
     upsert.run(GEOCODING_ENABLED_KEY, enabled ? 'true' : 'false');
 }
+
+const CARTO_API_KEY_KEY = 'carto_api_key';
+
+let deleteStmt: TypedStatement | null = null;
+
+export function getCartoApiKey(): string | null {
+    const { select } = requireStatements();
+    const setting = select.get(CARTO_API_KEY_KEY) as Setting | undefined;
+    return setting?.value ?? null;
+}
+
+export function setCartoApiKey(key: string | null): void {
+    const { upsert } = requireStatements();
+    if (key === null || key === '') {
+        deleteStmt ??= db.prepare('DELETE FROM settings WHERE key = ?');
+        deleteStmt.run(CARTO_API_KEY_KEY);
+        return;
+    }
+    upsert.run(CARTO_API_KEY_KEY, key);
+}

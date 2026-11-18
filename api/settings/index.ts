@@ -45,3 +45,15 @@ export {
     type UpdateAppErrorResponse,
     type UpdateAppResponse
 } from './app';
+export {
+    getMapContract,
+    getMapHandler,
+    mapSettingsResponseSchema,
+    updateMapContract,
+    updateMapHandler,
+    type GetMapErrorResponse,
+    type GetMapResponse,
+    type UpdateMapBody,
+    type UpdateMapErrorResponse,
+    type UpdateMapResponse
+} from './map';

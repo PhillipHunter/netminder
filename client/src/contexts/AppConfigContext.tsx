@@ -15,6 +15,7 @@ import { useAuth } from './AuthContext';
 interface AppConfigContextType {
     mobilityEnabled: boolean;
     geocodingEnabled: boolean;
+    cartoApiKey: string | null;
     refresh: () => Promise<void>;
 }
 
@@ -37,16 +38,19 @@ export function AppConfigProvider({ children }: AppConfigProviderProps) {
     const userId = user?.id ?? null;
     const [mobilityEnabled, setMobilityEnabled] = useState(true);
     const [geocodingEnabled, setGeocodingEnabled] = useState(false);
+    const [cartoApiKey, setCartoApiKey] = useState<string | null>(null);
 
     const refresh = useCallback(async () => {
         try {
             const config = await fetchAppConfig();
             setMobilityEnabled(config.mobility_enabled);
             setGeocodingEnabled(config.geocoding_enabled);
+            setCartoApiKey(config.carto_api_key);
         } catch (error) {
             console.error('Failed to load app config:', error);
             setMobilityEnabled(true);
             setGeocodingEnabled(false);
+            setCartoApiKey(null);
         }
     }, []);
 
@@ -54,6 +58,7 @@ export function AppConfigProvider({ children }: AppConfigProviderProps) {
         if (userId === null) {
             setMobilityEnabled(true);
             setGeocodingEnabled(false);
+            setCartoApiKey(null);
             return;
         }
 
@@ -63,8 +68,9 @@ export function AppConfigProvider({ children }: AppConfigProviderProps) {
     const value = useMemo<AppConfigContextType>(() => ({
         mobilityEnabled,
         geocodingEnabled,
+        cartoApiKey,
         refresh
-    }), [mobilityEnabled, geocodingEnabled, refresh]);
+    }), [mobilityEnabled, geocodingEnabled, cartoApiKey, refresh]);
 
     return <AppConfigContext.Provider value={value}>{children}</AppConfigContext.Provider>;
 }

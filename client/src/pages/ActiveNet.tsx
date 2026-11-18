@@ -96,18 +96,23 @@ export function ActiveNet() {
     const [currentTime, setCurrentTime] = useState<Date>(() => new Date());
     const [showColon, setShowColon] = useState(true);
 
-    function toggleMap() {
-        const next = !mapOpen;
-        setMapOpen(next);
+    function setMapOpenPreference(open: boolean) {
+        setMapOpen(open);
         try {
-            localStorage.setItem(MAP_OPEN_STORAGE_KEY, next ? '1' : '0');
+            localStorage.setItem(MAP_OPEN_STORAGE_KEY, open ? '1' : '0');
         } catch {
             // Preference is optional; ignore storage failures
         }
     }
 
+    function toggleMap() {
+        setMapOpenPreference(!mapOpen);
+    }
+
+    // The pop-out replaces the panel, so close it rather than showing the map twice
     function handlePopOutMap() {
         window.open(`/nets/${id}/map`, `netminder-map-${id}`, 'popup,width=1100,height=800');
+        setMapOpenPreference(false);
     }
 
     // Warn when per-user QRZ lookups are unavailable; a failed fetch simply shows no notice

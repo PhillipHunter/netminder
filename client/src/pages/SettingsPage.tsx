@@ -14,6 +14,7 @@ import {
 import type {
     AccountQrzStatus,
     GeocodingStatus,
+    MapSettings,
     QrzCredentialMode,
     QrzSettingsStatus
 } from '../api';
@@ -22,14 +23,17 @@ import {
     deleteQrzSettings,
     fetchAccountQrz,
     fetchAppSettings,
+    fetchMapSettings,
     fetchQrzSettings,
     testAccountQrz,
     updateAccountQrz,
     updateAppSettings,
+    updateMapSettings,
     updateQrzMode,
     updateQrzSettings
 } from '../api';
 import { PageHeader } from '../components/PageHeader';
+import { CARTO_DARK_URL } from '../components/mapShared';
 import { useAppConfig } from '../contexts/AppConfigContext';
 import { useAuth } from '../contexts/AuthContext';
 import { resolveErrorMessage } from '../utils/errors';
@@ -677,6 +681,147 @@ function CheckinOptionsSection() {
     );
 }
 
+function MapSection() {
+    const { cartoApiKey, refresh } = useAppConfig();
+    const [status, setStatus] = useState<MapSettings | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [keyInput, setKeyInput] = useState('');
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        void (async () => {
+            try {
+                setStatus(await fetchMapSettings());
+            } catch (err) {
+                console.error('Failed to load map settings:', err);
+                setError(resolveErrorMessage(err, 'Failed to load map settings.'));
+            } finally {
+                setLoading(false);
+            }
+        })();
+    }, []);
+
+    const save = async (key: string | null) => {
+        try {
+            setSaving(true);
+            setError(null);
+            setStatus(await updateMapSettings({ carto_api_key: key }));
+            setKeyInput('');
+            await refresh();
+        } catch (err) {
+            console.error('Failed to update map settings:', err);
+            setError(resolveErrorMessage(err, 'Failed to update map settings.'));
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        void save(keyInput.trim());
+    };
+
+    const keySet = status?.carto_key_set ?? false;
+    const previewUrl = cartoApiKey
+        ? CARTO_DARK_URL
+            .replace('{s}', 'a')
+            .replace('{z}', '4')
+            .replace('{x}', '4')
+            .replace('{y}', '6')
+            .replace('{r}', '')
+            .replace('{key}', encodeURIComponent(cartoApiKey))
+        : null;
+
+    return (
+        <section className={SECTION_CLASS}>
+            <h2 className='text-lg font-semibold text-slate-100'>Map</h2>
+            <p className='mt-1 mb-6 text-sm text-slate-400'>
+                Users pick a map theme on the map: Light, Inverted or Dark Matter. Add a free CARTO basemaps key to make the
+                CARTO Dark Matter theme available.
+                <br />
+                <a
+                    href='https://carto.com/basemaps/apikey'
+                    target='_blank'
+                    rel='noreferrer'
+                    className='text-indigo-400 underline hover:text-indigo-300'
+                >
+                    Get a key
+                </a>
+            </p>
+
+            {loading ? (
+                <div className='text-sm text-slate-400'>Loading map settings…</div>
+            ) : (
+                <div className='space-y-4'>
+                    {error && (
+                        <div className='rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200'>
+                            {error}
+                        </div>
+                    )}
+
+                    <form onSubmit={handleSubmit} className='space-y-2'>
+                        <label htmlFor='carto-api-key' className='block text-sm font-medium text-slate-200'>CARTO API key</label>
+                        <div className='flex flex-wrap items-center gap-3'>
+                            <input
+                                id='carto-api-key'
+                                type='password'
+                                autoComplete='off'
+                                value={keyInput}
+                                onChange={(event) => { setKeyInput(event.target.value); }}
+                                placeholder={keySet && status?.carto_key_hint ? `•••• ${status.carto_key_hint}` : 'Paste your CARTO API key'}
+                                disabled={saving}
+                                className={`${INPUT_CLASS} max-w-sm flex-1`}
+                            />
+                            <button
+                                type='submit'
+                                disabled={saving || keyInput.trim() === ''}
+                                className={PRIMARY_BUTTON_CLASS}
+                            >
+                                <FiSave className='h-4 w-4' />
+                                {saving ? 'Saving…' : 'Save'}
+                            </button>
+                            {keySet && (
+                                <button
+                                    type='button'
+                                    disabled={saving}
+                                    onClick={() => { void save(null); }}
+                                    className={DANGER_BUTTON_CLASS}
+                                >
+                                    <FiTrash2 className='h-4 w-4' />
+                                    Remove
+                                </button>
+                            )}
+                        </div>
+                    </form>
+
+                    <p className='text-sm text-slate-300'>
+                        {keySet
+                            ? 'Dark Matter theme: available to all users in the map theme menu'
+                            : 'Dark Matter theme: unavailable until a key is added'}
+                    </p>
+
+                    {keySet && previewUrl && (
+                        <figure className='space-y-2'>
+                            <img
+                                src={previewUrl}
+                                alt='CARTO Dark Matter sample tile'
+                                width={128}
+                                height={128}
+                                referrerPolicy='strict-origin-when-cross-origin'
+                                className='h-32 w-32 rounded-xl border border-slate-700/70'
+                            />
+                            <figcaption className='text-xs text-slate-400'>
+                                If this shows an &apos;API key required&apos; watermark, the key isn&apos;t valid.
+                            </figcaption>
+                        </figure>
+                    )}
+                </div>
+            )}
+        </section>
+    );
+}
+
 export function SettingsPage() {
     const { user } = useAuth();
     const isAdmin = Boolean(user?.is_admin);
@@ -745,6 +890,7 @@ export function SettingsPage() {
                                 <ModeSection mode={account.mode} onChanged={loadAccount} />
                                 <GlobalQrzSection mode={account.mode} />
                                 <CheckinOptionsSection />
+                                <MapSection />
                             </>
                         )}
                     </div>

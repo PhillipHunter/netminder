@@ -10,13 +10,68 @@ export interface LocatedCheckin {
 
 export const OSM_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 export const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+export const OSM_BACKGROUND = '#f2efe9';
+export const DARK_BACKGROUND = '#1f1d18';
+export const DARK_TILE_FILTER = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
 export const RING_RADIUS_PX = 26;
 export const RING_BASE_CAPACITY = 8;
 export const MARKER_COLOR = '#4338ca';
 export const MARKER_FILL = '#818cf8';
 export const LEADER_COLOR = '#475569';
+export const DARK_LEADER_COLOR = '#94a3b8';
+export const DARK_APPROXIMATE_STROKE = '#a5b4fc';
 export const NCS_COLOR = '#f59e0b';
 export const HULL_COLOR = '#6366f1';
+
+export const CARTO_DARK_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key={key}';
+export const CARTO_SUBDOMAINS = 'abcd';
+export const CARTO_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+export const CARTO_BACKGROUND = '#262626';
+
+export type MapTheme = 'light' | 'inverted' | 'dark-matter';
+
+export const MAP_THEMES: { id: MapTheme; label: string }[] = [
+    { id: 'light', label: 'Light' },
+    { id: 'inverted', label: 'Inverted' },
+    { id: 'dark-matter', label: 'Dark Matter' }
+];
+
+export interface BaseMap {
+    theme: MapTheme;
+    url: string;
+    subdomains: string;
+    attribution: string;
+    filter: string;
+    background: string;
+}
+
+export function baseMapFor(theme: MapTheme, cartoKey: string | null): BaseMap {
+    if (theme === 'dark-matter' && cartoKey) {
+        return {
+            theme,
+            url: CARTO_DARK_URL.replace('{key}', encodeURIComponent(cartoKey)),
+            subdomains: CARTO_SUBDOMAINS,
+            attribution: CARTO_ATTRIBUTION,
+            filter: 'none',
+            background: CARTO_BACKGROUND
+        };
+    }
+    const inverted = theme !== 'light';
+    return {
+        theme: inverted ? 'inverted' : 'light',
+        url: OSM_URL,
+        subdomains: 'abc',
+        attribution: OSM_ATTRIBUTION,
+        filter: inverted ? DARK_TILE_FILTER : 'none',
+        background: inverted ? DARK_BACKGROUND : OSM_BACKGROUND
+    };
+}
+
+export function mapColorsFor(theme: MapTheme): { leader: string; approximateStroke: string } {
+    return theme !== 'light'
+        ? { leader: DARK_LEADER_COLOR, approximateStroke: DARK_APPROXIMATE_STROKE }
+        : { leader: LEADER_COLOR, approximateStroke: MARKER_COLOR };
+}
 
 export const PRECISION_NOTES: Record<string, string | null> = {
     address: null,
