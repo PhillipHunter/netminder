@@ -669,7 +669,7 @@ function MapSection() {
             <h2 className='text-lg font-semibold text-slate-100'>Map</h2>
             <p className='mt-1 mb-6 text-sm text-slate-400'>
                 Dark mode uses a darkened OpenStreetMap. Add a free CARTO basemaps key for the CARTO Dark Matter map instead.
-                {' '}
+                <br />
                 <a
                     href='https://carto.com/basemaps/apikey'
                     target='_blank'
