@@ -58,16 +58,23 @@ function formatMobility(mobility: string): string {
 }
 
 /**
- * Generates a filename for the CSV export based on the net start date
+ * Formats the net start date (falling back to creation date) as YYYY-MM-DD in local time
  */
-function generateFilename(netInfo: Net): string {
+export function formatNetDate(netInfo: Pick<Net, 'started_at' | 'created_at'>): string {
     const reference = netInfo.started_at ?? netInfo.created_at;
     const date = new Date(reference);
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
 
-    return `net-${year}-${month}-${day}.csv`;
+    return `${year}-${month}-${day}`;
+}
+
+/**
+ * Generates a filename for the CSV export based on the net start date
+ */
+function generateFilename(netInfo: Net): string {
+    return `net-${formatNetDate(netInfo)}.csv`;
 }
 
 /**

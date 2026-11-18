@@ -106,7 +106,7 @@ export function NetMapPage() {
                 </span>
             </header>
             <div className='min-h-0 flex-1'>
-                <NetMapView checkins={checkins} />
+                <NetMapView checkins={checkins} net={net} />
             </div>
         </div>
     );
