@@ -24,7 +24,7 @@ interface NetMapViewProps {
 }
 
 const RADAR_STORAGE_KEY = 'netminder.map.radar';
-const LABELS_STORAGE_KEY = 'netminder.map.labels';
+const PINS_STORAGE_KEY = 'netminder.map.pins';
 const COVERAGE_STORAGE_KEY = 'netminder.map.coverage';
 
 function readRadarPreference(): boolean {
@@ -35,9 +35,9 @@ function readRadarPreference(): boolean {
     }
 }
 
-function readLabelsPreference(): boolean {
+function readPinsPreference(): boolean {
     try {
-        return localStorage.getItem(LABELS_STORAGE_KEY) !== '0';
+        return localStorage.getItem(PINS_STORAGE_KEY) !== '0';
     } catch {
         return true;
     }
@@ -55,7 +55,7 @@ const EXPORT_BUTTON_CLASS = 'flex items-center gap-1.5 rounded-lg border border-
 
 export function NetMapView({ checkins, net = null }: NetMapViewProps) {
     const [radarEnabled, setRadarEnabled] = useState<boolean>(readRadarPreference);
-    const [labelsEnabled, setLabelsEnabled] = useState<boolean>(readLabelsPreference);
+    const [pinsEnabled, setPinsEnabled] = useState<boolean>(readPinsPreference);
     const [coverageEnabled, setCoverageEnabled] = useState<boolean>(readCoveragePreference);
     const [netControlId, setNetControlId] = useState<number | null>(null);
     const [showHull, setShowHull] = useState(true);
@@ -73,11 +73,11 @@ export function NetMapView({ checkins, net = null }: NetMapViewProps) {
 
     useEffect(() => {
         try {
-            localStorage.setItem(LABELS_STORAGE_KEY, labelsEnabled ? '1' : '0');
+            localStorage.setItem(PINS_STORAGE_KEY, pinsEnabled ? '1' : '0');
         } catch {
             // Preference is optional; ignore storage failures
         }
-    }, [labelsEnabled]);
+    }, [pinsEnabled]);
 
     useEffect(() => {
         try {
@@ -97,7 +97,7 @@ export function NetMapView({ checkins, net = null }: NetMapViewProps) {
         setExporting(true);
         setExportError(null);
         try {
-            await exportCoveragePng(result, net, { showHull, showHeat, showLabels: labelsEnabled });
+            await exportCoveragePng(result, net, { showHull, showHeat, showPins: pinsEnabled });
         } catch (error) {
             console.error('Error exporting coverage PNG:', error);
             setExportError('PNG export failed');
@@ -125,13 +125,13 @@ export function NetMapView({ checkins, net = null }: NetMapViewProps) {
                 <label className='flex cursor-pointer items-center gap-2 text-slate-300'>
                     <input
                         type='checkbox'
-                        checked={labelsEnabled}
+                        checked={pinsEnabled}
                         onChange={(e) => {
-                            setLabelsEnabled(e.target.checked);
+                            setPinsEnabled(e.target.checked);
                         }}
                         className='h-4 w-4 accent-indigo-500'
                     />
-                    Labels
+                    Pins
                 </label>
                 <label className='flex cursor-pointer items-center gap-2 text-slate-300'>
                     <input
@@ -229,7 +229,7 @@ export function NetMapView({ checkins, net = null }: NetMapViewProps) {
                 <CheckinMap
                     checkins={checkins}
                     radarEnabled={radarEnabled}
-                    showLabels={labelsEnabled}
+                    showPins={pinsEnabled}
                     coverage={coverageEnabled ? { result, net, showHull, showHeat } : undefined}
                 />
             </div>

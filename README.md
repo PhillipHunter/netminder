@@ -46,7 +46,7 @@ API documentation is available at `http://localhost:8080/api/openapi`.
 Turn on **Coverage** on the net map (panel or pop-out) to estimate how far a net reached. Pick net control from the net's check-ins; it defaults to the earliest located check-in and is not saved.
 
 - **Coverage area:** the convex hull (the smallest outline containing every point) around address-level positions, including net control.
-- **Heatmap:** density of address-level check-ins, drawn with a fixed 3 km radius at every zoom level.
+- **Heatmap:** density of address-level check-ins, drawn with a fixed 5 km radius at every zoom level.
 - **Farthest station:** the address-level station farthest from net control, by great-circle distance.
 - **Approximate positions** (ZIP, grid square, state, country) are still shown with dashed markers but are excluded from the hull, heatmap and distances. If net control itself is approximate, distances are flagged as estimates.
 - **Exports:** PNG (OpenStreetMap tiles, hull, heatmap, summary), KML and GeoJSON, named `net-YYYY-MM-DD-coverage.*`. Radar is never included.

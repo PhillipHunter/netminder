@@ -38,7 +38,7 @@ export interface CoverageExportNet {
 export interface CoveragePngOptions {
     showHull: boolean;
     showHeat: boolean;
-    showLabels: boolean;
+    showPins: boolean;
 }
 
 const PNG_WIDTH = 1600;
@@ -201,7 +201,7 @@ function drawLabel(ctx: CanvasRenderingContext2D, text: string, x: number, y: nu
     ctx.fillText(text, boxX + padX, boxY + boxH / 2 + 0.5);
 }
 
-function drawMarker(ctx: CanvasRenderingContext2D, station: CoverageStation, x: number, y: number, direction: string, isNcs: boolean, showLabels: boolean): void {
+function drawMarker(ctx: CanvasRenderingContext2D, station: CoverageStation, x: number, y: number, direction: string, isNcs: boolean): void {
     const approximate = APPROXIMATE_PRECISIONS.includes(station.checkin.location_precision ?? '');
     if (isNcs) {
         ctx.beginPath();
@@ -221,8 +221,7 @@ function drawMarker(ctx: CanvasRenderingContext2D, station: CoverageStation, x: 
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.setLineDash([]);
-    if (showLabels)
-        drawLabel(ctx, isNcs ? `${station.checkin.callsign} (NCS)` : station.checkin.callsign, x, y, direction);
+    drawLabel(ctx, isNcs ? `${station.checkin.callsign} (NCS)` : station.checkin.callsign, x, y, direction);
 }
 
 interface PanelLayout {
@@ -354,12 +353,12 @@ export async function exportCoveragePng(result: CoverageResult, net: CoverageExp
             station
         }));
         const ncsId = result.netControl?.checkin.id ?? null;
-        const clusters = clusterByPixel(located, item => toCanvas(item));
+        const clusters = options.showPins ? clusterByPixel(located, item => toCanvas(item)) : [];
         for (const cluster of clusters) {
             const group = cluster.items;
             if (group.length === 1) {
                 const point = toCanvas(group[0]);
-                drawMarker(ctx, group[0].station, point.x, point.y, 'right', group[0].checkin.id === ncsId, options.showLabels);
+                drawMarker(ctx, group[0].station, point.x, point.y, 'right', group[0].checkin.id === ncsId);
                 continue;
             }
             const spreads = group.map((item, index) => {
@@ -381,7 +380,7 @@ export async function exportCoveragePng(result: CoverageResult, net: CoverageExp
                 ctx.fill();
             }
             for (const { item, offset } of spreads)
-                drawMarker(ctx, item.station, cluster.x + offset.x, cluster.y + offset.y, labelDirection(offset), item.checkin.id === ncsId, options.showLabels);
+                drawMarker(ctx, item.station, cluster.x + offset.x, cluster.y + offset.y, labelDirection(offset), item.checkin.id === ncsId);
         }
     }
 

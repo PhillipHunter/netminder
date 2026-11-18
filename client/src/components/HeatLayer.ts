@@ -10,7 +10,7 @@ export interface PixelPoint {
     y: number;
 }
 
-export const HEAT_RADIUS_METERS = 3000;
+export const HEAT_RADIUS_METERS = 5000;
 const HEAT_MAX_OPACITY = 0.6;
 const HEAT_BLOB_ALPHA = 0.35;
 const HEAT_FULL_ALPHA = 90;
