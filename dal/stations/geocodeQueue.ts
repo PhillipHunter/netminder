@@ -1,6 +1,7 @@
 import {
     distanceKm,
-    geocodeAddress
+    geocodeAddress,
+    stripStreetType
 } from '@netminder/core';
 
 import { getGeocodingEnabled } from '../settings';
@@ -24,6 +25,13 @@ let lastRequestAt = 0;
 
 function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function waitForRequestSlot(): Promise<void> {
+    const wait = lastRequestAt + MIN_REQUEST_INTERVAL_MS - Date.now();
+    if (wait > 0) {
+        await sleep(wait);
+    }
 }
 
 function qrzCoordinates(qrzData: string | null): { lat: number; lon: number } | null {
@@ -60,17 +68,33 @@ async function processStation(stationId: number): Promise<boolean> {
         return true;
     }
 
-    const wait = lastRequestAt + MIN_REQUEST_INTERVAL_MS - Date.now();
-    if (wait > 0) {
-        await sleep(wait);
-    }
+    await waitForRequestSlot();
 
     if (!getGeocodingEnabled()) {
         return true;
     }
 
     lastRequestAt = Date.now();
-    const result = await geocodeAddress(address.parts);
+    let result = await geocodeAddress(address.parts);
+    let usedFallback = false;
+
+    if (result.status === 'no_match') {
+        const stripped = stripStreetType(address.parts.street);
+        if (stripped) {
+            await waitForRequestSlot();
+
+            if (!getGeocodingEnabled()) {
+                return true;
+            }
+
+            lastRequestAt = Date.now();
+            result = await geocodeAddress({
+                ...address.parts,
+                street: stripped.street
+            }, { roadPrefix: stripped.roadName });
+            usedFallback = true;
+        }
+    }
 
     if (result.status === 'error') {
         return false;
@@ -95,7 +119,11 @@ async function processStation(stationId: number): Promise<boolean> {
     }
 
     saveGeocodeResult(stationId, result.lat, result.lon);
-    console.log(`Geocoder: geocoded ${current.callsign}`);
+    if (usedFallback) {
+        console.log(`Geocoder: matched ${current.callsign} without road type`);
+    } else {
+        console.log(`Geocoder: geocoded ${current.callsign}`);
+    }
     return true;
 }
 

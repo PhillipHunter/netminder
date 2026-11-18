@@ -6,6 +6,10 @@ export interface GeocodeAddressParts {
     country?: string;
 }
 
+export interface GeocodeOptions {
+    roadPrefix?: string;
+}
+
 export type GeocodeResult =
     | { status: 'match'; lat: number; lon: number }
     | { status: 'no_match' }
@@ -15,7 +19,16 @@ interface NominatimPlace {
     lat?: string;
     lon?: string;
     place_rank?: number;
+    address?: { road?: string };
 }
+
+const STREET_SUFFIXES = new Set([
+    'ln', 'lane', 'dr', 'drive', 'st', 'street', 'rd', 'road', 'ct', 'court',
+    'ave', 'av', 'avenue', 'blvd', 'boulevard', 'way', 'pl', 'place', 'cir', 'circle',
+    'ter', 'terrace', 'trl', 'trail', 'pkwy', 'parkway', 'hwy', 'highway', 'cv', 'cove',
+    'loop', 'run', 'pass', 'xing', 'crossing', 'pt', 'point', 'sq', 'square',
+    'aly', 'alley', 'bnd', 'bend', 'holw', 'hollow', 'rdg', 'ridge', 'row'
+]);
 
 const DEFAULT_GEOCODER_URL = 'https://nominatim.openstreetmap.org';
 const USER_AGENT = 'NetMinder/1.0 (+https://github.com/sirmalloc/netminder)';
@@ -32,7 +45,35 @@ export function distanceKm(lat1: number, lon1: number, lat2: number, lon2: numbe
     return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
-export async function geocodeAddress(parts: GeocodeAddressParts): Promise<GeocodeResult> {
+function normalizeRoad(value: string): string {
+    return value.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+/** Drops a trailing street type so records that disagree with OSM on the road type can still match. */
+export function stripStreetType(street: string): { street: string; roadName: string } | null {
+    const words = street.trim().split(/\s+/);
+    if (words.length < 2) {
+        return null;
+    }
+
+    const suffix = words[words.length - 1].replace(/\.+$/, '').toLowerCase();
+    if (!STREET_SUFFIXES.has(suffix)) {
+        return null;
+    }
+
+    const remaining = words.slice(0, -1);
+    const nameWords = /^\d/.test(remaining[0]) ? remaining.slice(1) : remaining;
+    if (nameWords.length === 0) {
+        return null;
+    }
+
+    return {
+        street: remaining.join(' '),
+        roadName: nameWords.join(' ')
+    };
+}
+
+export async function geocodeAddress(parts: GeocodeAddressParts, options?: GeocodeOptions): Promise<GeocodeResult> {
     const configuredUrl = process.env.GEOCODER_URL?.trim();
     let baseUrl = DEFAULT_GEOCODER_URL;
     if (configuredUrl) {
@@ -44,7 +85,7 @@ export async function geocodeAddress(parts: GeocodeAddressParts): Promise<Geocod
     const params = new URLSearchParams({
         format: 'jsonv2',
         limit: '1',
-        addressdetails: '0'
+        addressdetails: '1'
     });
     const fields: [string, string | undefined][] = [
         ['street', parts.street],
@@ -95,6 +136,14 @@ export async function geocodeAddress(parts: GeocodeAddressParts): Promise<Geocod
             || place.place_rank < MIN_HOUSE_PLACE_RANK
         ) {
             return { status: 'no_match' };
+        }
+
+        if (options?.roadPrefix) {
+            const prefix = normalizeRoad(options.roadPrefix);
+            const road = normalizeRoad(place.address?.road ?? '');
+            if (!prefix || (road !== prefix && !road.startsWith(`${prefix} `))) {
+                return { status: 'no_match' };
+            }
         }
 
         return {
