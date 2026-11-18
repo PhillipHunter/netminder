@@ -28,7 +28,16 @@ export const CARTO_SUBDOMAINS = 'abcd';
 export const CARTO_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 export const CARTO_BACKGROUND = '#262626';
 
+export type MapTheme = 'light' | 'inverted' | 'dark-matter';
+
+export const MAP_THEMES: { id: MapTheme; label: string }[] = [
+    { id: 'light', label: 'Light' },
+    { id: 'inverted', label: 'Inverted' },
+    { id: 'dark-matter', label: 'Dark Matter' }
+];
+
 export interface BaseMap {
+    theme: MapTheme;
     url: string;
     subdomains: string;
     attribution: string;
@@ -36,9 +45,10 @@ export interface BaseMap {
     background: string;
 }
 
-export function baseMapFor(dark: boolean, cartoKey: string | null): BaseMap {
-    if (dark && cartoKey) {
+export function baseMapFor(theme: MapTheme, cartoKey: string | null): BaseMap {
+    if (theme === 'dark-matter' && cartoKey) {
         return {
+            theme,
             url: CARTO_DARK_URL.replace('{key}', encodeURIComponent(cartoKey)),
             subdomains: CARTO_SUBDOMAINS,
             attribution: CARTO_ATTRIBUTION,
@@ -46,17 +56,19 @@ export function baseMapFor(dark: boolean, cartoKey: string | null): BaseMap {
             background: CARTO_BACKGROUND
         };
     }
+    const inverted = theme !== 'light';
     return {
+        theme: inverted ? 'inverted' : 'light',
         url: OSM_URL,
         subdomains: 'abc',
         attribution: OSM_ATTRIBUTION,
-        filter: dark ? DARK_TILE_FILTER : 'none',
-        background: dark ? DARK_BACKGROUND : OSM_BACKGROUND
+        filter: inverted ? DARK_TILE_FILTER : 'none',
+        background: inverted ? DARK_BACKGROUND : OSM_BACKGROUND
     };
 }
 
-export function mapColorsFor(dark: boolean): { leader: string; approximateStroke: string } {
-    return dark
+export function mapColorsFor(theme: MapTheme): { leader: string; approximateStroke: string } {
+    return theme !== 'light'
         ? { leader: DARK_LEADER_COLOR, approximateStroke: DARK_APPROXIMATE_STROKE }
         : { leader: LEADER_COLOR, approximateStroke: MARKER_COLOR };
 }

@@ -4,20 +4,19 @@ import {
 } from '../components/HeatLayer';
 import {
     APPROXIMATE_PRECISIONS,
-    CARTO_DARK_URL,
-    CARTO_SUBDOMAINS,
     HULL_COLOR,
     MARKER_COLOR,
     MARKER_FILL,
     NCS_COLOR,
-    OSM_URL,
     PRECISION_NOTES,
     baseMapFor,
     clusterByPixel,
     labelDirection,
     mapColorsFor,
     ringOffset,
-    type LocatedCheckin
+    type BaseMap,
+    type LocatedCheckin,
+    type MapTheme
 } from '../components/mapShared';
 
 import {
@@ -42,7 +41,7 @@ export interface CoveragePngOptions {
     showHull: boolean;
     showHeat: boolean;
     showPins: boolean;
-    dark: boolean;
+    theme: MapTheme;
     cartoKey: string | null;
 }
 
@@ -114,7 +113,7 @@ function chooseZoom(points: { lat: number; lon: number }[], areaWidth: number, a
     return Math.max(0, Math.min(MAX_EXPORT_ZOOM, Math.log2(fit)));
 }
 
-function loadTile(zoom: number, x: number, y: number, cartoKey: string | null): Promise<HTMLImageElement | null> {
+function loadTile(zoom: number, x: number, y: number, base: BaseMap): Promise<HTMLImageElement | null> {
     return new Promise((resolve) => {
         const image = new Image();
         image.crossOrigin = 'anonymous';
@@ -125,23 +124,18 @@ function loadTile(zoom: number, x: number, y: number, cartoKey: string | null): 
         image.onerror = () => {
             resolve(null);
         };
-        const template = cartoKey
-            ? CARTO_DARK_URL
-                .replace('{s}', CARTO_SUBDOMAINS[(x + y) % CARTO_SUBDOMAINS.length])
-                .replace('{r}', '')
-                .replace('{key}', encodeURIComponent(cartoKey))
-            : OSM_URL;
-        image.src = template
+        image.src = base.url
+            .replace('{s}', base.subdomains[(x + y) % base.subdomains.length])
+            .replace('{r}', '')
             .replace('{z}', String(zoom)).replace('{x}', String(x)).replace('{y}', String(y));
     });
 }
 
-async function drawTiles(ctx: CanvasRenderingContext2D, zoom: number, originX: number, originY: number, dark: boolean, cartoKey: string | null): Promise<void> {
+async function drawTiles(ctx: CanvasRenderingContext2D, zoom: number, originX: number, originY: number, base: BaseMap): Promise<void> {
     const tileZoom = Math.floor(zoom);
     const tileCount = 2 ** tileZoom;
     const tileSize = TILE_SIZE * 2 ** (zoom - tileZoom);
     const jobs: Promise<void>[] = [];
-    const base = baseMapFor(dark, cartoKey);
     ctx.filter = base.filter;
     for (let tx = Math.floor(originX / tileSize); tx <= Math.floor((originX + PNG_WIDTH) / tileSize); tx++) {
         for (let ty = Math.floor(originY / tileSize); ty <= Math.floor((originY + PNG_HEIGHT) / tileSize); ty++) {
@@ -150,7 +144,7 @@ async function drawTiles(ctx: CanvasRenderingContext2D, zoom: number, originX: n
             const wrappedX = ((tx % tileCount) + tileCount) % tileCount;
             const drawX = Math.round(tx * tileSize - originX);
             const drawY = Math.round(ty * tileSize - originY);
-            jobs.push(loadTile(tileZoom, wrappedX, ty, dark ? cartoKey : null).then((image) => {
+            jobs.push(loadTile(tileZoom, wrappedX, ty, base).then((image) => {
                 if (image)
                     ctx.drawImage(image, drawX, drawY, Math.ceil(tileSize) + 1, Math.ceil(tileSize) + 1);
             }));
@@ -216,7 +210,7 @@ function drawLabel(ctx: CanvasRenderingContext2D, text: string, x: number, y: nu
     ctx.fillText(text, boxX + padX, boxY + boxH / 2 + 0.5);
 }
 
-function drawMarker(ctx: CanvasRenderingContext2D, station: CoverageStation, x: number, y: number, direction: string, isNcs: boolean, dark: boolean): void {
+function drawMarker(ctx: CanvasRenderingContext2D, station: CoverageStation, x: number, y: number, direction: string, isNcs: boolean, theme: MapTheme): void {
     const approximate = APPROXIMATE_PRECISIONS.includes(station.checkin.location_precision ?? '');
     if (isNcs) {
         ctx.beginPath();
@@ -232,7 +226,7 @@ function drawMarker(ctx: CanvasRenderingContext2D, station: CoverageStation, x: 
     ctx.fill();
     ctx.globalAlpha = 1;
     ctx.setLineDash(approximate ? [3, 3] : []);
-    ctx.strokeStyle = isNcs ? NCS_COLOR : approximate ? mapColorsFor(dark).approximateStroke : MARKER_COLOR;
+    ctx.strokeStyle = isNcs ? NCS_COLOR : approximate ? mapColorsFor(theme).approximateStroke : MARKER_COLOR;
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.setLineDash([]);
@@ -300,7 +294,8 @@ export async function exportCoveragePng(result: CoverageResult, net: CoverageExp
     if (!ctx)
         throw new Error('Canvas is not supported in this browser');
 
-    ctx.fillStyle = baseMapFor(options.dark, options.cartoKey).background;
+    const base = baseMapFor(options.theme, options.cartoKey);
+    ctx.fillStyle = base.background;
     ctx.fillRect(0, 0, PNG_WIDTH, PNG_HEIGHT);
 
     const panel = layoutPanel(ctx, result, options);
@@ -322,7 +317,7 @@ export async function exportCoveragePng(result: CoverageResult, net: CoverageExp
             return { x: w.x - originX, y: w.y - originY };
         };
 
-        await drawTiles(ctx, zoom, originX, originY, options.dark, options.cartoKey);
+        await drawTiles(ctx, zoom, originX, originY, base);
 
         if (options.showHeat && result.heatPoints.length > 0) {
             const centerLat = (Math.min(...stations.map(s => s.lat)) + Math.max(...stations.map(s => s.lat))) / 2;
@@ -368,13 +363,13 @@ export async function exportCoveragePng(result: CoverageResult, net: CoverageExp
             station
         }));
         const ncsId = result.netControl?.checkin.id ?? null;
-        const leaderColor = mapColorsFor(options.dark).leader;
+        const leaderColor = mapColorsFor(options.theme).leader;
         const clusters = options.showPins ? clusterByPixel(located, item => toCanvas(item)) : [];
         for (const cluster of clusters) {
             const group = cluster.items;
             if (group.length === 1) {
                 const point = toCanvas(group[0]);
-                drawMarker(ctx, group[0].station, point.x, point.y, 'right', group[0].checkin.id === ncsId, options.dark);
+                drawMarker(ctx, group[0].station, point.x, point.y, 'right', group[0].checkin.id === ncsId, options.theme);
                 continue;
             }
             const spreads = group.map((item, index) => {
@@ -396,7 +391,7 @@ export async function exportCoveragePng(result: CoverageResult, net: CoverageExp
                 ctx.fill();
             }
             for (const { item, offset } of spreads)
-                drawMarker(ctx, item.station, cluster.x + offset.x, cluster.y + offset.y, labelDirection(offset), item.checkin.id === ncsId, options.dark);
+                drawMarker(ctx, item.station, cluster.x + offset.x, cluster.y + offset.y, labelDirection(offset), item.checkin.id === ncsId, options.theme);
         }
     }
 
@@ -418,7 +413,7 @@ export async function exportCoveragePng(result: CoverageResult, net: CoverageExp
     drawPanel(ctx, panel);
 
     ctx.font = `12px ${FONT}`;
-    const attribution = options.dark && options.cartoKey ? '© OpenStreetMap contributors © CARTO' : '© OpenStreetMap contributors';
+    const attribution = base.theme === 'dark-matter' ? '© OpenStreetMap contributors © CARTO' : '© OpenStreetMap contributors';
     const attributionWidth = ctx.measureText(attribution).width + 12;
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
     ctx.fillRect(PNG_WIDTH - attributionWidth, PNG_HEIGHT - 20, attributionWidth, 20);

@@ -18,6 +18,10 @@ import {
 } from '../utils/coverageExport';
 
 import { CheckinMap } from './CheckinMap';
+import {
+    MAP_THEMES,
+    type MapTheme
+} from './mapShared';
 
 interface NetMapViewProps {
     checkins: Checkin[];
@@ -28,6 +32,7 @@ const RADAR_STORAGE_KEY = 'netminder.map.radar';
 const PINS_STORAGE_KEY = 'netminder.map.pins';
 const COVERAGE_STORAGE_KEY = 'netminder.map.coverage';
 const DARK_STORAGE_KEY = 'netminder.map.dark';
+const THEME_STORAGE_KEY = 'netminder.map.theme';
 
 function readRadarPreference(): boolean {
     try {
@@ -45,12 +50,18 @@ function readPinsPreference(): boolean {
     }
 }
 
-function readDarkPreference(): boolean {
+function readThemePreference(): MapTheme {
     try {
-        return localStorage.getItem(DARK_STORAGE_KEY) !== '0';
+        const stored = localStorage.getItem(THEME_STORAGE_KEY);
+        const known = MAP_THEMES.find(theme => theme.id === stored);
+        if (known)
+            return known.id;
+        if (localStorage.getItem(DARK_STORAGE_KEY) === '0')
+            return 'light';
     } catch {
-        return true;
+        // Preference is optional; ignore storage failures
     }
+    return 'inverted';
 }
 
 function readCoveragePreference(): boolean {
@@ -68,7 +79,8 @@ export function NetMapView({ checkins, net = null }: NetMapViewProps) {
     const [radarEnabled, setRadarEnabled] = useState<boolean>(readRadarPreference);
     const [pinsEnabled, setPinsEnabled] = useState<boolean>(readPinsPreference);
     const [coverageEnabled, setCoverageEnabled] = useState<boolean>(readCoveragePreference);
-    const [darkEnabled, setDarkEnabled] = useState<boolean>(readDarkPreference);
+    const [mapTheme, setMapTheme] = useState<MapTheme>(readThemePreference);
+    const effectiveTheme: MapTheme = mapTheme === 'dark-matter' && !cartoApiKey ? 'inverted' : mapTheme;
     const [netControlId, setNetControlId] = useState<number | null>(null);
     const [showHull, setShowHull] = useState(true);
     const [showHeat, setShowHeat] = useState(true);
@@ -101,11 +113,11 @@ export function NetMapView({ checkins, net = null }: NetMapViewProps) {
 
     useEffect(() => {
         try {
-            localStorage.setItem(DARK_STORAGE_KEY, darkEnabled ? '1' : '0');
+            localStorage.setItem(THEME_STORAGE_KEY, mapTheme);
         } catch {
             // Preference is optional; ignore storage failures
         }
-    }, [darkEnabled]);
+    }, [mapTheme]);
 
     const result = useMemo(() => computeCoverage(checkins, netControlId), [checkins, netControlId]);
     const locatedStations = useMemo(
@@ -117,7 +129,7 @@ export function NetMapView({ checkins, net = null }: NetMapViewProps) {
         setExporting(true);
         setExportError(null);
         try {
-            await exportCoveragePng(result, net, { showHull, showHeat, showPins: pinsEnabled, dark: darkEnabled, cartoKey: cartoApiKey });
+            await exportCoveragePng(result, net, { showHull, showHeat, showPins: pinsEnabled, theme: effectiveTheme, cartoKey: cartoApiKey });
         } catch (error) {
             console.error('Error exporting coverage PNG:', error);
             setExportError('PNG export failed');
@@ -250,11 +262,9 @@ export function NetMapView({ checkins, net = null }: NetMapViewProps) {
                     checkins={checkins}
                     radarEnabled={radarEnabled}
                     showPins={pinsEnabled}
-                    darkMap={darkEnabled}
+                    mapTheme={effectiveTheme}
                     cartoKey={cartoApiKey}
-                    onToggleDark={() => {
-                        setDarkEnabled(value => !value);
-                    }}
+                    onThemeChange={setMapTheme}
                     coverage={coverageEnabled ? { result, net, showHull, showHeat } : undefined}
                 />
             </div>
