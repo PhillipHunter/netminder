@@ -3,78 +3,80 @@ import 'leaflet/dist/leaflet.css';
 import {
     useCallback,
     useEffect,
-    useRef
+    useRef,
+    useState
 } from 'react';
-import { FaExpand } from 'react-icons/fa';
+import {
+    FaChevronDown,
+    FaChevronUp,
+    FaExpand
+} from 'react-icons/fa';
 
 import type { Checkin } from '../api';
+import {
+    COVERAGE_METHOD_LINES,
+    coverageSummaryLines,
+    type CoverageResult
+} from '../utils/coverage';
+import { formatNetDate } from '../utils/csv';
+
+import { HeatLayer } from './HeatLayer';
+import {
+    APPROXIMATE_PRECISIONS,
+    HULL_COLOR,
+    LABEL_OFFSETS,
+    LEADER_COLOR,
+    MARKER_COLOR,
+    MARKER_FILL,
+    NCS_COLOR,
+    OSM_ATTRIBUTION,
+    OSM_URL,
+    PRECISION_NOTES,
+    clusterByPixel,
+    labelDirection,
+    ringOffset,
+    type LocatedCheckin
+} from './mapShared';
+
+interface CoverageNet {
+    topic: string | null;
+    started_at: string | null;
+    created_at: string;
+}
+
+export interface CoverageView {
+    result: CoverageResult;
+    net: CoverageNet | null;
+    showHull: boolean;
+    showHeat: boolean;
+}
 
 interface CheckinMapProps {
     checkins: Checkin[];
     radarEnabled: boolean;
-}
-
-interface LocatedCheckin {
-    checkin: Checkin;
-    lat: number;
-    lon: number;
+    coverage?: CoverageView;
 }
 
 const RADAR_URL = 'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png';
 const RADAR_REFRESH_MS = 5 * 60 * 1000;
 const RADAR_ATTRIBUTION = 'NEXRAD radar: NWS via Iowa Environmental Mesonet (US only)';
-const OSM_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
-const RING_RADIUS_PX = 26;
-const RING_BASE_CAPACITY = 8;
-const MARKER_COLOR = '#4338ca';
-const MARKER_FILL = '#818cf8';
-const LEADER_COLOR = '#475569';
+
+const LEGEND_STORAGE_KEY = 'netminder.map.legend';
+const LEGEND_TALL_MAP_PX = 500;
+
+function readLegendPreference(): boolean | null {
+    try {
+        const value = localStorage.getItem(LEGEND_STORAGE_KEY);
+        return value === null ? null : value === '1';
+    } catch {
+        return null;
+    }
+}
 
 function radarTileUrl(): string {
     const bucket = Math.floor(Date.now() / RADAR_REFRESH_MS);
     return `${RADAR_URL}?_=${bucket}`;
 }
-
-function groupByLocation(located: LocatedCheckin[]): LocatedCheckin[][] {
-    const groups = new Map<string, LocatedCheckin[]>();
-    for (const item of located) {
-        const key = `${item.lat.toFixed(5)},${item.lon.toFixed(5)}`;
-        const group = groups.get(key);
-        if (group) {
-            group.push(item);
-        } else {
-            groups.set(key, [item]);
-        }
-    }
-    return [...groups.values()];
-}
-
-function ringOffset(index: number, count: number): L.Point {
-    let ring = 0;
-    let start = 0;
-    let capacity = RING_BASE_CAPACITY;
-    while (index >= start + capacity) {
-        start += capacity;
-        ring += 1;
-        capacity = RING_BASE_CAPACITY * (ring + 1);
-    }
-    const inRing = Math.min(capacity, count - start);
-    const angle = -Math.PI / 2 + (2 * Math.PI * (index - start)) / inRing;
-    const radius = RING_RADIUS_PX * (ring + 1);
-    return L.point(Math.cos(angle) * radius, Math.sin(angle) * radius);
-}
-
-const PRECISION_NOTES: Record<string, string | null> = {
-    address: null,
-    zip: 'Approximate: ZIP code center',
-    grid: 'Approximate: grid square center',
-    state: 'Approximate: state center',
-    country: 'Approximate: country center',
-    unknown: 'Location precision not reported by QRZ'
-};
-
-const APPROXIMATE_PRECISIONS = ['zip', 'grid', 'state', 'country'];
 
 function buildPopup(item: LocatedCheckin): HTMLElement {
     const { checkin } = item;
@@ -100,30 +102,17 @@ function buildPopup(item: LocatedCheckin): HTMLElement {
     return root;
 }
 
-function labelDirection(offset: L.Point): L.Direction {
-    if (Math.abs(offset.x) >= Math.abs(offset.y) / 2)
-        return offset.x < 0 ? 'left' : 'right';
-    return offset.y < 0 ? 'top' : 'bottom';
-}
-
-const LABEL_OFFSETS: Record<string, L.PointExpression> = {
-    left: [-8, 0],
-    right: [8, 0],
-    top: [0, -8],
-    bottom: [0, 8]
-};
-
-function buildMarker(item: LocatedCheckin, latLng: L.LatLng, direction: L.Direction = 'right'): L.CircleMarker {
+function buildMarker(item: LocatedCheckin, latLng: L.LatLng, direction: L.Direction = 'right', isNcs = false): L.CircleMarker {
     const approximate = APPROXIMATE_PRECISIONS.includes(item.checkin.location_precision ?? '');
     const marker = L.circleMarker(latLng, {
         radius: 7,
-        color: MARKER_COLOR,
+        color: isNcs ? NCS_COLOR : MARKER_COLOR,
         weight: 2,
         dashArray: approximate ? '3 3' : undefined,
-        fillColor: MARKER_FILL,
+        fillColor: isNcs ? NCS_COLOR : MARKER_FILL,
         fillOpacity: approximate ? 0.05 : 0.85
     });
-    marker.bindTooltip(item.checkin.callsign, {
+    marker.bindTooltip(isNcs ? `${item.checkin.callsign} (NCS)` : item.checkin.callsign, {
         permanent: true,
         direction,
         offset: LABEL_OFFSETS[direction]
@@ -132,10 +121,28 @@ function buildMarker(item: LocatedCheckin, latLng: L.LatLng, direction: L.Direct
     return marker;
 }
 
-export function CheckinMap({ checkins, radarEnabled }: CheckinMapProps) {
+function addMarker(layer: L.LayerGroup, item: LocatedCheckin, latLng: L.LatLng, direction: L.Direction, isNcs: boolean): void {
+    if (isNcs) {
+        L.circleMarker(latLng, {
+            radius: 12,
+            color: NCS_COLOR,
+            weight: 2,
+            fill: false,
+            interactive: false
+        }).addTo(layer);
+    }
+    buildMarker(item, latLng, direction, isNcs).addTo(layer);
+}
+
+export function CheckinMap({ checkins, radarEnabled, coverage }: CheckinMapProps) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<L.Map | null>(null);
     const markerLayerRef = useRef<L.LayerGroup | null>(null);
+    const coverageLayerRef = useRef<L.LayerGroup | null>(null);
+    const [legendPreference, setLegendPreference] = useState<boolean | null>(readLegendPreference);
+    const [tallMap, setTallMap] = useState(false);
+    const legendOpen = legendPreference ?? tallMap;
+    const netControlId = coverage?.result.netControl?.checkin.id ?? null;
     const renderRef = useRef<() => void>(() => undefined);
     const hasFitRef = useRef(false);
     const renderKeyRef = useRef<string | null>(null);
@@ -152,6 +159,7 @@ export function CheckinMap({ checkins, radarEnabled }: CheckinMapProps) {
             referrerPolicy: 'strict-origin-when-cross-origin'
         }).addTo(map);
 
+        coverageLayerRef.current = L.layerGroup().addTo(map);
         markerLayerRef.current = L.layerGroup().addTo(map);
         mapRef.current = map;
 
@@ -160,9 +168,13 @@ export function CheckinMap({ checkins, radarEnabled }: CheckinMapProps) {
         };
         map.on('zoomend', handleZoomEnd);
 
-        const observer = new ResizeObserver(() => map.invalidateSize());
+        const observer = new ResizeObserver(() => {
+            map.invalidateSize();
+            setTallMap(container.clientHeight >= LEGEND_TALL_MAP_PX);
+        });
         observer.observe(container);
         map.invalidateSize();
+        setTallMap(container.clientHeight >= LEGEND_TALL_MAP_PX);
 
         return () => {
             observer.disconnect();
@@ -170,6 +182,7 @@ export function CheckinMap({ checkins, radarEnabled }: CheckinMapProps) {
             map.remove();
             mapRef.current = null;
             markerLayerRef.current = null;
+            coverageLayerRef.current = null;
             hasFitRef.current = false;
             renderKeyRef.current = null;
         };
@@ -197,9 +210,9 @@ export function CheckinMap({ checkins, radarEnabled }: CheckinMapProps) {
             return;
 
         // Polling hands us a new array every few seconds; skip rebuilding (and closing open popups) unless something shown changed
-        const renderKey = checkins
+        const renderKey = `${netControlId}\n${checkins
             .map(c => [c.id, c.callsign, c.display_name, c.location_display, c.latitude, c.longitude, c.location_source, c.location_precision].join('|'))
-            .join('\n');
+            .join('\n')}`;
         if (renderKey === renderKeyRef.current)
             return;
         renderKeyRef.current = renderKey;
@@ -214,39 +227,38 @@ export function CheckinMap({ checkins, radarEnabled }: CheckinMapProps) {
                 });
             }
         }
-        const groups = groupByLocation(located);
-
         const render = () => {
             layer.clearLayers();
-            for (const group of groups) {
+            const clusters = clusterByPixel(located, item => map.latLngToLayerPoint([item.lat, item.lon]));
+            for (const cluster of clusters) {
+                const group = cluster.items;
                 const first = group[0];
-                const trueLatLng = L.latLng(first.lat, first.lon);
 
                 if (group.length === 1) {
-                    buildMarker(first, trueLatLng).addTo(layer);
+                    addMarker(layer, first, L.latLng(first.lat, first.lon), 'right', first.checkin.id === netControlId);
                     continue;
                 }
 
-                const truePoint = map.latLngToLayerPoint(trueLatLng);
-                L.circleMarker(trueLatLng, {
-                    radius: 2.5,
-                    color: LEADER_COLOR,
-                    weight: 1,
-                    fillColor: LEADER_COLOR,
-                    fillOpacity: 1,
-                    interactive: false
-                }).addTo(layer);
-
+                const centroid = L.point(cluster.x, cluster.y);
                 group.forEach((item, index) => {
+                    const trueLatLng = L.latLng(item.lat, item.lon);
                     const offset = ringOffset(index, group.length);
-                    const spread = map.layerPointToLatLng(truePoint.add(offset));
+                    const spread = map.layerPointToLatLng(centroid.add(offset));
+                    L.circleMarker(trueLatLng, {
+                        radius: 2.5,
+                        color: LEADER_COLOR,
+                        weight: 1,
+                        fillColor: LEADER_COLOR,
+                        fillOpacity: 1,
+                        interactive: false
+                    }).addTo(layer);
                     L.polyline([trueLatLng, spread], {
                         color: LEADER_COLOR,
                         weight: 1.5,
                         opacity: 0.8,
                         interactive: false
                     }).addTo(layer);
-                    buildMarker(item, spread, labelDirection(offset)).addTo(layer);
+                    addMarker(layer, item, spread, labelDirection(offset), item.checkin.id === netControlId);
                 });
             }
         };
@@ -258,7 +270,51 @@ export function CheckinMap({ checkins, radarEnabled }: CheckinMapProps) {
             hasFitRef.current = true;
             fitAll();
         }
-    }, [checkins, fitAll]);
+    }, [checkins, fitAll, netControlId]);
+
+    const hullPoints = coverage?.showHull ? coverage.result.hull : null;
+    const heatPoints = coverage?.showHeat ? coverage.result.heatPoints : null;
+    const farthest = coverage?.result.farthest ?? null;
+    const netControl = coverage?.result.netControl ?? null;
+
+    useEffect(() => {
+        const layer = coverageLayerRef.current;
+        if (!layer)
+            return;
+
+        if (hullPoints) {
+            L.polygon(hullPoints.map(p => L.latLng(p.lat, p.lon)), {
+                color: HULL_COLOR,
+                weight: 2,
+                fillColor: HULL_COLOR,
+                fillOpacity: 0.15,
+                interactive: false
+            }).addTo(layer);
+        }
+        if (netControl && farthest) {
+            L.polyline([L.latLng(netControl.lat, netControl.lon), L.latLng(farthest.station.lat, farthest.station.lon)], {
+                color: NCS_COLOR,
+                weight: 2,
+                dashArray: '6 6',
+                interactive: false
+            }).addTo(layer);
+        }
+
+        return () => {
+            layer.clearLayers();
+        };
+    }, [hullPoints, netControl, farthest]);
+
+    useEffect(() => {
+        const map = mapRef.current;
+        if (!map || !heatPoints)
+            return;
+
+        const heat = new HeatLayer(heatPoints).addTo(map);
+        return () => {
+            heat.remove();
+        };
+    }, [heatPoints]);
 
     useEffect(() => {
         const map = mapRef.current;
@@ -288,6 +344,64 @@ export function CheckinMap({ checkins, radarEnabled }: CheckinMapProps) {
                 <FaExpand />
                 Fit all
             </button>
+            {coverage && (
+                <CoverageLegend
+                    coverage={coverage}
+                    open={legendOpen}
+                    onToggle={() => {
+                        setLegendPreference(!legendOpen);
+                        try {
+                            localStorage.setItem(LEGEND_STORAGE_KEY, legendOpen ? '0' : '1');
+                        } catch {
+                            // Preference is optional; ignore storage failures
+                        }
+                    }}
+                />
+            )}
+        </div>
+    );
+}
+
+function CoverageLegend({ coverage, open, onToggle }: { coverage: CoverageView; open: boolean; onToggle: () => void }) {
+    const { result, net, showHull, showHeat } = coverage;
+    const lines = coverageSummaryLines(result);
+    const layerLines = [
+        ...(showHull ? [COVERAGE_METHOD_LINES.hull] : []),
+        ...(showHeat ? [COVERAGE_METHOD_LINES.heat] : []),
+        COVERAGE_METHOD_LINES.approximate
+    ];
+
+    return (
+        <div className='absolute bottom-6 left-3 z-[1000] max-h-[calc(100%-8rem)] max-w-[16rem] overflow-y-auto rounded-lg border border-slate-700/70 bg-slate-900/85 text-[11px] leading-snug text-slate-200 shadow-md shadow-black/30'>
+            <button
+                type='button'
+                onClick={onToggle}
+                aria-expanded={open}
+                className='flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left font-semibold text-slate-100 hover:bg-slate-800/70'
+            >
+                Legend
+                {open ? <FaChevronDown /> : <FaChevronUp />}
+            </button>
+            {open && (
+                <div className='px-3 pb-2'>
+                    <div className='font-semibold text-slate-100'>
+                        {net?.topic ?? 'Net'}
+                        {net && <span className='ml-2 font-normal text-slate-400'>{formatNetDate(net)}</span>}
+                    </div>
+                    <div className='mt-1 space-y-0.5'>
+                        {lines.map(line => <div key={line}>{line}</div>)}
+                    </div>
+                    <div className='mt-1.5 space-y-0.5 border-t border-slate-700/60 pt-1.5 text-slate-400'>
+                        {result.netControl && (
+                            <div className='flex items-center gap-1.5'>
+                                <span className='inline-block h-2.5 w-2.5 rounded-full border-2' style={{ borderColor: NCS_COLOR, backgroundColor: NCS_COLOR }} />
+                                {`Net control: ${result.netControl.checkin.callsign}`}
+                            </div>
+                        )}
+                        {layerLines.map(line => <div key={line}>{line}</div>)}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

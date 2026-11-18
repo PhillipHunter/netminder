@@ -894,7 +894,7 @@ export function ActiveNet() {
                             </button>
                         </div>
                         <div className='h-[380px]'>
-                            <NetMapView checkins={checkins} />
+                            <NetMapView checkins={checkins} net={net} />
                         </div>
                     </div>
                 )}
