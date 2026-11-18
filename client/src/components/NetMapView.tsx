@@ -9,6 +9,7 @@ import type {
     Checkin,
     Net
 } from '../api';
+import { useAppConfig } from '../contexts/AppConfigContext';
 import { computeCoverage } from '../utils/coverage';
 import {
     exportCoverageGeoJson,
@@ -63,6 +64,7 @@ function readCoveragePreference(): boolean {
 const EXPORT_BUTTON_CLASS = 'flex items-center gap-1.5 rounded-lg border border-slate-700/70 px-2.5 py-1 text-xs text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50';
 
 export function NetMapView({ checkins, net = null }: NetMapViewProps) {
+    const { cartoApiKey } = useAppConfig();
     const [radarEnabled, setRadarEnabled] = useState<boolean>(readRadarPreference);
     const [pinsEnabled, setPinsEnabled] = useState<boolean>(readPinsPreference);
     const [coverageEnabled, setCoverageEnabled] = useState<boolean>(readCoveragePreference);
@@ -115,7 +117,7 @@ export function NetMapView({ checkins, net = null }: NetMapViewProps) {
         setExporting(true);
         setExportError(null);
         try {
-            await exportCoveragePng(result, net, { showHull, showHeat, showPins: pinsEnabled, dark: darkEnabled });
+            await exportCoveragePng(result, net, { showHull, showHeat, showPins: pinsEnabled, dark: darkEnabled, cartoKey: cartoApiKey });
         } catch (error) {
             console.error('Error exporting coverage PNG:', error);
             setExportError('PNG export failed');
@@ -249,6 +251,7 @@ export function NetMapView({ checkins, net = null }: NetMapViewProps) {
                     radarEnabled={radarEnabled}
                     showPins={pinsEnabled}
                     darkMap={darkEnabled}
+                    cartoKey={cartoApiKey}
                     onToggleDark={() => {
                         setDarkEnabled(value => !value);
                     }}

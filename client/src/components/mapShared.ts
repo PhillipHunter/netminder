@@ -23,16 +23,32 @@ export const DARK_APPROXIMATE_STROKE = '#a5b4fc';
 export const NCS_COLOR = '#f59e0b';
 export const HULL_COLOR = '#6366f1';
 
+export const CARTO_DARK_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key={key}';
+export const CARTO_SUBDOMAINS = 'abcd';
+export const CARTO_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+export const CARTO_BACKGROUND = '#262626';
+
 export interface BaseMap {
     url: string;
+    subdomains: string;
     attribution: string;
     filter: string;
     background: string;
 }
 
-export function baseMapFor(dark: boolean): BaseMap {
+export function baseMapFor(dark: boolean, cartoKey: string | null): BaseMap {
+    if (dark && cartoKey) {
+        return {
+            url: CARTO_DARK_URL.replace('{key}', encodeURIComponent(cartoKey)),
+            subdomains: CARTO_SUBDOMAINS,
+            attribution: CARTO_ATTRIBUTION,
+            filter: 'none',
+            background: CARTO_BACKGROUND
+        };
+    }
     return {
         url: OSM_URL,
+        subdomains: 'abc',
         attribution: OSM_ATTRIBUTION,
         filter: dark ? DARK_TILE_FILTER : 'none',
         background: dark ? DARK_BACKGROUND : OSM_BACKGROUND

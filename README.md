@@ -49,7 +49,8 @@ Turn on **Coverage** on the net map (panel or pop-out) to estimate how far a net
 - **Heatmap:** density of address-level check-ins, drawn with a fixed 5 km radius at every zoom level.
 - **Farthest station:** the address-level station farthest from net control, by great-circle distance.
 - **Approximate positions** (ZIP, grid square, state, country) are still shown with dashed markers but are excluded from the hull, heatmap and distances. If net control itself is approximate, distances are flagged as estimates.
-- **Exports:** PNG (OpenStreetMap tiles (darkened when Dark is on), hull, heatmap, summary), KML and GeoJSON, named `net-YYYY-MM-DD-coverage.*`. Radar is never included.
+- **Dark map (optional CARTO key):** by default Dark darkens OpenStreetMap tiles. An admin can add a free CARTO basemaps API key under **Settings → Map** (get one at https://carto.com/basemaps/apikey) to use CARTO Dark Matter in dark mode instead, including in PNG exports. The key is stored as plain text and sent to signed-in browsers in tile URLs. Remove it to fall back to the darkened OpenStreetMap; light mode is always OpenStreetMap.
+- **Exports:** PNG (OpenStreetMap tiles (darkened when Dark is on, or CARTO Dark Matter when a key is set), hull, heatmap, summary), KML and GeoJSON, named `net-YYYY-MM-DD-coverage.*`. Radar is never included.
 
 ## Docker deployment
 

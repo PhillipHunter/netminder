@@ -4,6 +4,8 @@ import {
 } from '../components/HeatLayer';
 import {
     APPROXIMATE_PRECISIONS,
+    CARTO_DARK_URL,
+    CARTO_SUBDOMAINS,
     HULL_COLOR,
     MARKER_COLOR,
     MARKER_FILL,
@@ -41,6 +43,7 @@ export interface CoveragePngOptions {
     showHeat: boolean;
     showPins: boolean;
     dark: boolean;
+    cartoKey: string | null;
 }
 
 const PNG_WIDTH = 1600;
@@ -111,7 +114,7 @@ function chooseZoom(points: { lat: number; lon: number }[], areaWidth: number, a
     return Math.max(0, Math.min(MAX_EXPORT_ZOOM, Math.log2(fit)));
 }
 
-function loadTile(zoom: number, x: number, y: number): Promise<HTMLImageElement | null> {
+function loadTile(zoom: number, x: number, y: number, cartoKey: string | null): Promise<HTMLImageElement | null> {
     return new Promise((resolve) => {
         const image = new Image();
         image.crossOrigin = 'anonymous';
@@ -122,17 +125,24 @@ function loadTile(zoom: number, x: number, y: number): Promise<HTMLImageElement 
         image.onerror = () => {
             resolve(null);
         };
-        image.src = OSM_URL
+        const template = cartoKey
+            ? CARTO_DARK_URL
+                .replace('{s}', CARTO_SUBDOMAINS[(x + y) % CARTO_SUBDOMAINS.length])
+                .replace('{r}', '')
+                .replace('{key}', encodeURIComponent(cartoKey))
+            : OSM_URL;
+        image.src = template
             .replace('{z}', String(zoom)).replace('{x}', String(x)).replace('{y}', String(y));
     });
 }
 
-async function drawTiles(ctx: CanvasRenderingContext2D, zoom: number, originX: number, originY: number, dark: boolean): Promise<void> {
+async function drawTiles(ctx: CanvasRenderingContext2D, zoom: number, originX: number, originY: number, dark: boolean, cartoKey: string | null): Promise<void> {
     const tileZoom = Math.floor(zoom);
     const tileCount = 2 ** tileZoom;
     const tileSize = TILE_SIZE * 2 ** (zoom - tileZoom);
     const jobs: Promise<void>[] = [];
-    ctx.filter = baseMapFor(dark).filter;
+    const base = baseMapFor(dark, cartoKey);
+    ctx.filter = base.filter;
     for (let tx = Math.floor(originX / tileSize); tx <= Math.floor((originX + PNG_WIDTH) / tileSize); tx++) {
         for (let ty = Math.floor(originY / tileSize); ty <= Math.floor((originY + PNG_HEIGHT) / tileSize); ty++) {
             if (ty < 0 || ty >= tileCount)
@@ -140,7 +150,7 @@ async function drawTiles(ctx: CanvasRenderingContext2D, zoom: number, originX: n
             const wrappedX = ((tx % tileCount) + tileCount) % tileCount;
             const drawX = Math.round(tx * tileSize - originX);
             const drawY = Math.round(ty * tileSize - originY);
-            jobs.push(loadTile(tileZoom, wrappedX, ty).then((image) => {
+            jobs.push(loadTile(tileZoom, wrappedX, ty, dark ? cartoKey : null).then((image) => {
                 if (image)
                     ctx.drawImage(image, drawX, drawY, Math.ceil(tileSize) + 1, Math.ceil(tileSize) + 1);
             }));
@@ -290,7 +300,7 @@ export async function exportCoveragePng(result: CoverageResult, net: CoverageExp
     if (!ctx)
         throw new Error('Canvas is not supported in this browser');
 
-    ctx.fillStyle = baseMapFor(options.dark).background;
+    ctx.fillStyle = baseMapFor(options.dark, options.cartoKey).background;
     ctx.fillRect(0, 0, PNG_WIDTH, PNG_HEIGHT);
 
     const panel = layoutPanel(ctx, result, options);
@@ -312,7 +322,7 @@ export async function exportCoveragePng(result: CoverageResult, net: CoverageExp
             return { x: w.x - originX, y: w.y - originY };
         };
 
-        await drawTiles(ctx, zoom, originX, originY, options.dark);
+        await drawTiles(ctx, zoom, originX, originY, options.dark, options.cartoKey);
 
         if (options.showHeat && result.heatPoints.length > 0) {
             const centerLat = (Math.min(...stations.map(s => s.lat)) + Math.max(...stations.map(s => s.lat))) / 2;
@@ -408,7 +418,7 @@ export async function exportCoveragePng(result: CoverageResult, net: CoverageExp
     drawPanel(ctx, panel);
 
     ctx.font = `12px ${FONT}`;
-    const attribution = '© OpenStreetMap contributors';
+    const attribution = options.dark && options.cartoKey ? '© OpenStreetMap contributors © CARTO' : '© OpenStreetMap contributors';
     const attributionWidth = ctx.measureText(attribution).width + 12;
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
     ctx.fillRect(PNG_WIDTH - attributionWidth, PNG_HEIGHT - 20, attributionWidth, 20);

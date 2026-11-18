@@ -56,6 +56,7 @@ interface CheckinMapProps {
     radarEnabled: boolean;
     showPins: boolean;
     darkMap: boolean;
+    cartoKey: string | null;
     onToggleDark: () => void;
     coverage?: CoverageView;
 }
@@ -137,10 +138,11 @@ function addMarker(layer: L.LayerGroup, item: LocatedCheckin, latLng: L.LatLng, 
     buildMarker(item, latLng, direction, isNcs, dark).addTo(layer);
 }
 
-export function CheckinMap({ checkins, radarEnabled, showPins, darkMap, onToggleDark, coverage }: CheckinMapProps) {
+export function CheckinMap({ checkins, radarEnabled, showPins, darkMap, cartoKey, onToggleDark, coverage }: CheckinMapProps) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<L.Map | null>(null);
     const baseLayerRef = useRef<L.TileLayer | null>(null);
+    const baseUrlRef = useRef<string | null>(null);
     const markerLayerRef = useRef<L.LayerGroup | null>(null);
     const coverageLayerRef = useRef<L.LayerGroup | null>(null);
     const [legendPreference, setLegendPreference] = useState<boolean | null>(readLegendPreference);
@@ -180,6 +182,7 @@ export function CheckinMap({ checkins, radarEnabled, showPins, darkMap, onToggle
             map.remove();
             mapRef.current = null;
             baseLayerRef.current = null;
+            baseUrlRef.current = null;
             markerLayerRef.current = null;
             coverageLayerRef.current = null;
             hasFitRef.current = false;
@@ -193,11 +196,17 @@ export function CheckinMap({ checkins, radarEnabled, showPins, darkMap, onToggle
         if (!map || !container)
             return;
 
-        const base = baseMapFor(darkMap);
+        const base = baseMapFor(darkMap, cartoKey);
         container.style.background = base.background;
+        if (baseLayerRef.current && baseUrlRef.current !== base.url) {
+            baseLayerRef.current.remove();
+            baseLayerRef.current = null;
+        }
         if (!baseLayerRef.current) {
+            baseUrlRef.current = base.url;
             baseLayerRef.current = L.tileLayer(base.url, {
                 attribution: base.attribution,
+                subdomains: base.subdomains,
                 maxZoom: 19,
                 className: 'netminder-base-tiles',
                 referrerPolicy: 'strict-origin-when-cross-origin'
@@ -207,7 +216,7 @@ export function CheckinMap({ checkins, radarEnabled, showPins, darkMap, onToggle
         const tiles = baseLayerRef.current.getContainer();
         if (tiles)
             tiles.style.filter = base.filter;
-    }, [darkMap]);
+    }, [darkMap, cartoKey]);
 
     const fitAll = useCallback(() => {
         const map = mapRef.current;

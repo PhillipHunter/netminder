@@ -39,7 +39,9 @@ export type StationStats = stations.StationStatsSchema;
 export type StationLookupResponse = stations.LookupResponse['lookup'];
 export type StationFieldSource = stations.StationLookupFieldSchema['source'];
 export type QrzSettingsStatus = settings.QRZStatusSchema;
-export type AppConfig = config.AppConfigSchema;
+export type AppConfig = config.ClientConfigSchema;
+export type AppSettingsConfig = config.AppConfigSchema;
+export type MapSettings = settings.GetMapResponse['map'];
 export type QrzCredentialMode = settings.QRZModeSchema;
 export type AccountQrzStatus = account.AccountQrzStatusSchema;
 export type AccountQrzTestResult = account.TestResponse;
@@ -338,7 +340,7 @@ export async function fetchAppConfig(): Promise<AppConfig> {
     return data.config;
 }
 
-export async function updateAppSettings(payload: settings.UpdateAppBody): Promise<AppConfig> {
+export async function updateAppSettings(payload: settings.UpdateAppBody): Promise<AppSettingsConfig> {
     const data = await unwrapResponse<settings.UpdateAppResponse>(backend.api.settings.app.put(payload), 'Failed to update app settings');
     return data.config;
 }
@@ -451,4 +453,14 @@ export async function resetUserPassword(id: number): Promise<users.ResetPassword
         backend.api.users[id.toString()]['reset-password'].post(),
         'Failed to reset user password'
     );
+}
+
+export async function fetchMapSettings(): Promise<MapSettings> {
+    const data = await unwrapResponse<settings.GetMapResponse>(backend.api.settings.map.get(), 'Failed to load map settings');
+    return data.map;
+}
+
+export async function updateMapSettings(payload: settings.UpdateMapBody): Promise<MapSettings> {
+    const data = await unwrapResponse<settings.UpdateMapResponse>(backend.api.settings.map.put(payload), 'Failed to update map settings');
+    return data.map;
 }
