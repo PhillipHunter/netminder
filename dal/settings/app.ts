@@ -5,6 +5,7 @@ import {
 } from '../db';
 
 const MOBILITY_ENABLED_KEY = 'mobility_enabled';
+const GEOCODING_ENABLED_KEY = 'geocoding_enabled';
 
 let selectStmt: TypedStatement<Setting> | null = null;
 let upsertStmt: TypedStatement | null = null;
@@ -39,4 +40,15 @@ export function getMobilityEnabled(): boolean {
 export function setMobilityEnabled(enabled: boolean): void {
     const { upsert } = requireStatements();
     upsert.run(MOBILITY_ENABLED_KEY, enabled ? 'true' : 'false');
+}
+
+export function getGeocodingEnabled(): boolean {
+    const { select } = requireStatements();
+    const setting = select.get(GEOCODING_ENABLED_KEY) as Setting | undefined;
+    return setting?.value === 'true';
+}
+
+export function setGeocodingEnabled(enabled: boolean): void {
+    const { upsert } = requireStatements();
+    upsert.run(GEOCODING_ENABLED_KEY, enabled ? 'true' : 'false');
 }

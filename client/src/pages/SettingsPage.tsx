@@ -13,6 +13,7 @@ import {
 
 import type {
     AccountQrzStatus,
+    GeocodingStatus,
     QrzCredentialMode,
     QrzSettingsStatus
 } from '../api';
@@ -20,6 +21,7 @@ import {
     deleteAccountQrz,
     deleteQrzSettings,
     fetchAccountQrz,
+    fetchAppSettings,
     fetchQrzSettings,
     testAccountQrz,
     updateAccountQrz,
@@ -552,19 +554,62 @@ function GlobalQrzSection({ mode }: { mode: QrzCredentialMode }) {
 }
 
 function CheckinOptionsSection() {
-    const { mobilityEnabled, refresh } = useAppConfig();
+    const { mobilityEnabled, geocodingEnabled, refresh } = useAppConfig();
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [geocodingStatus, setGeocodingStatus] = useState<GeocodingStatus | null>(null);
 
-    const handleToggle = async (enabled: boolean) => {
+    useEffect(() => {
+        let cancelled = false;
+        fetchAppSettings()
+            .then((data) => {
+                if (!cancelled) {
+                    setGeocodingStatus(data.geocoding_status);
+                }
+            })
+            .catch((err: unknown) => {
+                console.error('Failed to load geocoding status:', err);
+            });
+        return () => { cancelled = true; };
+    }, []);
+
+    const hasPendingGeocoding = (geocodingStatus?.pending ?? 0) > 0;
+
+    useEffect(() => {
+        if (!geocodingEnabled || !hasPendingGeocoding) {
+            return;
+        }
+        let cancelled = false;
+        const timer = setInterval(() => {
+            fetchAppSettings()
+                .then((data) => {
+                    if (!cancelled) {
+                        setGeocodingStatus(data.geocoding_status);
+                    }
+                })
+                .catch((err: unknown) => {
+                    console.error('Failed to refresh geocoding status:', err);
+                });
+        }, 5000);
+        return () => {
+            cancelled = true;
+            clearInterval(timer);
+        };
+    }, [geocodingEnabled, hasPendingGeocoding]);
+
+    const handleToggle = async (
+        payload: { mobility_enabled?: boolean; geocoding_enabled?: boolean },
+        failureMessage: string
+    ) => {
         try {
             setSaving(true);
             setError(null);
-            await updateAppSettings({ mobility_enabled: enabled });
+            const data = await updateAppSettings(payload);
+            setGeocodingStatus(data.geocoding_status);
             await refresh();
         } catch (err) {
             console.error('Failed to update app settings:', err);
-            setError(resolveErrorMessage(err, 'Failed to update mobility tracking.'));
+            setError(resolveErrorMessage(err, failureMessage));
         } finally {
             setSaving(false);
         }
@@ -588,7 +633,7 @@ function CheckinOptionsSection() {
                     <input
                         type='checkbox'
                         checked={mobilityEnabled}
-                        onChange={(event) => { void handleToggle(event.target.checked); }}
+                        onChange={(event) => { void handleToggle({ mobility_enabled: event.target.checked }, 'Failed to update mobility tracking.'); }}
                         disabled={saving}
                         className='mt-1 accent-indigo-500'
                     />
@@ -601,6 +646,30 @@ function CheckinOptionsSection() {
                             When disabled, mobility options are hidden and new check-ins are saved as fixed. Existing
                             mobility data is kept and returns if tracking is re-enabled.
                         </span>
+                    </span>
+                </label>
+
+                <label className='flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-700/70 bg-slate-950/60 px-4 py-3'>
+                    <input
+                        type='checkbox'
+                        checked={geocodingEnabled}
+                        onChange={(event) => { void handleToggle({ geocoding_enabled: event.target.checked }, 'Failed to update address geocoding.'); }}
+                        disabled={saving}
+                        className='mt-1 accent-indigo-500'
+                    />
+                    <span>
+                        <span className='block text-sm font-medium text-slate-100'>
+                            Geocode station addresses
+                        </span>
+                        <span className='block text-sm text-slate-400'>
+                            Looks up street addresses with OpenStreetMap Nominatim when QRZ only knows the ZIP code or a
+                            rougher area. Sends members' registered addresses to that service. Off by default.
+                        </span>
+                        {geocodingStatus && (
+                            <span className='mt-1 block text-xs text-slate-500'>
+                                {`${geocodingStatus.geocoded} geocoded · ${geocodingStatus.no_match} no match · ${geocodingStatus.pending} pending`}
+                            </span>
+                        )}
                     </span>
                 </label>
             </div>

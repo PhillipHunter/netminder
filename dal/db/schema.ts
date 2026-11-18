@@ -50,6 +50,9 @@ CREATE TABLE IF NOT EXISTS stations (
   notes TEXT,
   qrz_data TEXT,
   qrz_last_fetched_at TEXT,
+  geocoded_lat REAL,
+  geocoded_lon REAL,
+  geocoded_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`;

@@ -35,8 +35,12 @@ export {
     type UpdateModeResponse
 } from './update-mode';
 export {
+    getAppContract,
+    getAppHandler,
     updateAppContract,
     updateAppHandler,
+    type GetAppErrorResponse,
+    type GetAppResponse,
     type UpdateAppBody,
     type UpdateAppErrorResponse,
     type UpdateAppResponse

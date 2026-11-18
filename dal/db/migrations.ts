@@ -233,6 +233,23 @@ const MIGRATIONS: Migration[] = [
 
             db.run('CREATE INDEX IF NOT EXISTS idx_nets_created_by ON nets(created_by)');
         }
+    },
+    {
+        id: '20261118_station_geocoding',
+        name: 'Add geocoded coordinates columns to stations table',
+        run: (db) => {
+            if (!tableHasColumn(db, 'stations', 'geocoded_lat')) {
+                db.run('ALTER TABLE stations ADD COLUMN geocoded_lat REAL');
+            }
+
+            if (!tableHasColumn(db, 'stations', 'geocoded_lon')) {
+                db.run('ALTER TABLE stations ADD COLUMN geocoded_lon REAL');
+            }
+
+            if (!tableHasColumn(db, 'stations', 'geocoded_at')) {
+                db.run('ALTER TABLE stations ADD COLUMN geocoded_at TEXT');
+            }
+        }
     }
 ];
 

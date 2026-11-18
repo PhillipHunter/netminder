@@ -9,8 +9,11 @@ export interface ParsedQrzData {
         name_fmt?: string;
         fname?: string;
         name?: string;
+        addr1?: string;
         addr2?: string;
         state?: string;
+        zip?: string;
+        country?: string;
         lat?: string | number;
         lon?: string | number;
         grid?: string;

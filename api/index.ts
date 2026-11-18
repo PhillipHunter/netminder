@@ -58,6 +58,7 @@ const settingsRoutes = new Elysia()
     .put('/settings/qrz', settings.updateHandler, settings.updateContract)
     .put('/settings/qrz/mode', settings.updateModeHandler, settings.updateModeContract)
     .delete('/settings/qrz', settings.deleteHandler, settings.deleteContract)
+    .get('/settings/app', settings.getAppHandler, settings.getAppContract)
     .put('/settings/app', settings.updateAppHandler, settings.updateAppContract);
 
 const configRoutes = new Elysia()
