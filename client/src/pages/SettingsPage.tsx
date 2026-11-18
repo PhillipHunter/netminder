@@ -573,6 +573,30 @@ function CheckinOptionsSection() {
         return () => { cancelled = true; };
     }, []);
 
+    const hasPendingGeocoding = (geocodingStatus?.pending ?? 0) > 0;
+
+    useEffect(() => {
+        if (!geocodingEnabled || !hasPendingGeocoding) {
+            return;
+        }
+        let cancelled = false;
+        const timer = setInterval(() => {
+            fetchAppSettings()
+                .then((data) => {
+                    if (!cancelled) {
+                        setGeocodingStatus(data.geocoding_status);
+                    }
+                })
+                .catch((err: unknown) => {
+                    console.error('Failed to refresh geocoding status:', err);
+                });
+        }, 5000);
+        return () => {
+            cancelled = true;
+            clearInterval(timer);
+        };
+    }, [geocodingEnabled, hasPendingGeocoding]);
+
     const handleToggle = async (
         payload: { mobility_enabled?: boolean; geocoding_enabled?: boolean },
         failureMessage: string
