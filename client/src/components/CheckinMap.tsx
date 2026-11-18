@@ -9,7 +9,8 @@ import {
 import {
     FaChevronDown,
     FaChevronUp,
-    FaExpand
+    FaExpand,
+    FaMoon
 } from 'react-icons/fa';
 
 import type { Checkin } from '../api';
@@ -25,15 +26,14 @@ import {
     APPROXIMATE_PRECISIONS,
     HULL_COLOR,
     LABEL_OFFSETS,
-    LEADER_COLOR,
     MARKER_COLOR,
     MARKER_FILL,
     NCS_COLOR,
-    OSM_ATTRIBUTION,
-    OSM_URL,
     PRECISION_NOTES,
+    baseMapFor,
     clusterByPixel,
     labelDirection,
+    mapColorsFor,
     ringOffset,
     type LocatedCheckin
 } from './mapShared';
@@ -55,6 +55,8 @@ interface CheckinMapProps {
     checkins: Checkin[];
     radarEnabled: boolean;
     showPins: boolean;
+    darkMap: boolean;
+    onToggleDark: () => void;
     coverage?: CoverageView;
 }
 
@@ -103,11 +105,11 @@ function buildPopup(item: LocatedCheckin): HTMLElement {
     return root;
 }
 
-function buildMarker(item: LocatedCheckin, latLng: L.LatLng, direction: L.Direction = 'right', isNcs = false): L.CircleMarker {
+function buildMarker(item: LocatedCheckin, latLng: L.LatLng, direction: L.Direction, isNcs: boolean, dark: boolean): L.CircleMarker {
     const approximate = APPROXIMATE_PRECISIONS.includes(item.checkin.location_precision ?? '');
     const marker = L.circleMarker(latLng, {
         radius: 7,
-        color: isNcs ? NCS_COLOR : MARKER_COLOR,
+        color: isNcs ? NCS_COLOR : approximate ? mapColorsFor(dark).approximateStroke : MARKER_COLOR,
         weight: 2,
         dashArray: approximate ? '3 3' : undefined,
         fillColor: isNcs ? NCS_COLOR : MARKER_FILL,
@@ -122,7 +124,7 @@ function buildMarker(item: LocatedCheckin, latLng: L.LatLng, direction: L.Direct
     return marker;
 }
 
-function addMarker(layer: L.LayerGroup, item: LocatedCheckin, latLng: L.LatLng, direction: L.Direction, isNcs: boolean): void {
+function addMarker(layer: L.LayerGroup, item: LocatedCheckin, latLng: L.LatLng, direction: L.Direction, isNcs: boolean, dark: boolean): void {
     if (isNcs) {
         L.circleMarker(latLng, {
             radius: 12,
@@ -132,12 +134,13 @@ function addMarker(layer: L.LayerGroup, item: LocatedCheckin, latLng: L.LatLng, 
             interactive: false
         }).addTo(layer);
     }
-    buildMarker(item, latLng, direction, isNcs).addTo(layer);
+    buildMarker(item, latLng, direction, isNcs, dark).addTo(layer);
 }
 
-export function CheckinMap({ checkins, radarEnabled, showPins, coverage }: CheckinMapProps) {
+export function CheckinMap({ checkins, radarEnabled, showPins, darkMap, onToggleDark, coverage }: CheckinMapProps) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<L.Map | null>(null);
+    const baseLayerRef = useRef<L.TileLayer | null>(null);
     const markerLayerRef = useRef<L.LayerGroup | null>(null);
     const coverageLayerRef = useRef<L.LayerGroup | null>(null);
     const [legendPreference, setLegendPreference] = useState<boolean | null>(readLegendPreference);
@@ -154,12 +157,6 @@ export function CheckinMap({ checkins, radarEnabled, showPins, coverage }: Check
             return;
 
         const map = L.map(container, { zoomControl: true }).setView([39, -98], 4);
-        L.tileLayer(OSM_URL, {
-            maxZoom: 19,
-            attribution: OSM_ATTRIBUTION,
-            referrerPolicy: 'strict-origin-when-cross-origin'
-        }).addTo(map);
-
         coverageLayerRef.current = L.layerGroup().addTo(map);
         markerLayerRef.current = L.layerGroup().addTo(map);
         mapRef.current = map;
@@ -182,12 +179,35 @@ export function CheckinMap({ checkins, radarEnabled, showPins, coverage }: Check
             map.off('zoomend', handleZoomEnd);
             map.remove();
             mapRef.current = null;
+            baseLayerRef.current = null;
             markerLayerRef.current = null;
             coverageLayerRef.current = null;
             hasFitRef.current = false;
             renderKeyRef.current = null;
         };
     }, []);
+
+    useEffect(() => {
+        const map = mapRef.current;
+        const container = containerRef.current;
+        if (!map || !container)
+            return;
+
+        const base = baseMapFor(darkMap);
+        container.style.background = base.background;
+        if (!baseLayerRef.current) {
+            baseLayerRef.current = L.tileLayer(base.url, {
+                attribution: base.attribution,
+                maxZoom: 19,
+                className: 'netminder-base-tiles',
+                referrerPolicy: 'strict-origin-when-cross-origin'
+            }).addTo(map);
+            baseLayerRef.current.bringToBack();
+        }
+        const tiles = baseLayerRef.current.getContainer();
+        if (tiles)
+            tiles.style.filter = base.filter;
+    }, [darkMap]);
 
     const fitAll = useCallback(() => {
         const map = mapRef.current;
@@ -211,7 +231,7 @@ export function CheckinMap({ checkins, radarEnabled, showPins, coverage }: Check
             return;
 
         // Polling hands us a new array every few seconds; skip rebuilding (and closing open popups) unless something shown changed
-        const renderKey = `${netControlId}\n${showPins}\n${checkins
+        const renderKey = `${netControlId}\n${showPins}\n${darkMap}\n${checkins
             .map(c => [c.id, c.callsign, c.display_name, c.location_display, c.latitude, c.longitude, c.location_source, c.location_precision].join('|'))
             .join('\n')}`;
         if (renderKey === renderKeyRef.current)
@@ -228,6 +248,7 @@ export function CheckinMap({ checkins, radarEnabled, showPins, coverage }: Check
                 });
             }
         }
+        const leaderColor = mapColorsFor(darkMap).leader;
         const render = () => {
             layer.clearLayers();
             if (!showPins)
@@ -238,7 +259,7 @@ export function CheckinMap({ checkins, radarEnabled, showPins, coverage }: Check
                 const first = group[0];
 
                 if (group.length === 1) {
-                    addMarker(layer, first, L.latLng(first.lat, first.lon), 'right', first.checkin.id === netControlId);
+                    addMarker(layer, first, L.latLng(first.lat, first.lon), 'right', first.checkin.id === netControlId, darkMap);
                     continue;
                 }
 
@@ -249,19 +270,19 @@ export function CheckinMap({ checkins, radarEnabled, showPins, coverage }: Check
                     const spread = map.layerPointToLatLng(centroid.add(offset));
                     L.circleMarker(trueLatLng, {
                         radius: 2.5,
-                        color: LEADER_COLOR,
+                        color: leaderColor,
                         weight: 1,
-                        fillColor: LEADER_COLOR,
+                        fillColor: leaderColor,
                         fillOpacity: 1,
                         interactive: false
                     }).addTo(layer);
                     L.polyline([trueLatLng, spread], {
-                        color: LEADER_COLOR,
+                        color: leaderColor,
                         weight: 1.5,
                         opacity: 0.8,
                         interactive: false
                     }).addTo(layer);
-                    addMarker(layer, item, spread, labelDirection(offset), item.checkin.id === netControlId);
+                    addMarker(layer, item, spread, labelDirection(offset), item.checkin.id === netControlId, darkMap);
                 });
             }
         };
@@ -273,7 +294,7 @@ export function CheckinMap({ checkins, radarEnabled, showPins, coverage }: Check
             hasFitRef.current = true;
             fitAll();
         }
-    }, [checkins, fitAll, netControlId, showPins]);
+    }, [checkins, darkMap, fitAll, netControlId, showPins]);
 
     const hullPoints = coverage?.showHull ? coverage.result.hull : null;
     const heatPoints = coverage?.showHeat ? coverage.result.heatPoints : null;
@@ -346,6 +367,16 @@ export function CheckinMap({ checkins, radarEnabled, showPins, coverage }: Check
             >
                 <FaExpand />
                 Fit all
+            </button>
+            <button
+                type='button'
+                onClick={onToggleDark}
+                aria-pressed={darkMap}
+                title='Dark map'
+                className={`absolute right-3 top-14 z-[1000] flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs shadow-md shadow-black/30 transition-colors ${darkMap ? 'border-indigo-500/70 bg-indigo-950/90 text-indigo-200 hover:bg-indigo-900/90' : 'border-slate-700/70 bg-slate-900/90 text-slate-200 hover:border-slate-600 hover:bg-slate-800'}`}
+            >
+                <FaMoon />
+                Dark
             </button>
             {coverage && (
                 <CoverageLegend

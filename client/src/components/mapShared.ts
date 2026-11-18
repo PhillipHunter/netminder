@@ -10,13 +10,40 @@ export interface LocatedCheckin {
 
 export const OSM_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 export const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+export const OSM_BACKGROUND = '#f2efe9';
+export const DARK_BACKGROUND = '#1f1d18';
+export const DARK_TILE_FILTER = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
 export const RING_RADIUS_PX = 26;
 export const RING_BASE_CAPACITY = 8;
 export const MARKER_COLOR = '#4338ca';
 export const MARKER_FILL = '#818cf8';
 export const LEADER_COLOR = '#475569';
+export const DARK_LEADER_COLOR = '#94a3b8';
+export const DARK_APPROXIMATE_STROKE = '#a5b4fc';
 export const NCS_COLOR = '#f59e0b';
 export const HULL_COLOR = '#6366f1';
+
+export interface BaseMap {
+    url: string;
+    attribution: string;
+    filter: string;
+    background: string;
+}
+
+export function baseMapFor(dark: boolean): BaseMap {
+    return {
+        url: OSM_URL,
+        attribution: OSM_ATTRIBUTION,
+        filter: dark ? DARK_TILE_FILTER : 'none',
+        background: dark ? DARK_BACKGROUND : OSM_BACKGROUND
+    };
+}
+
+export function mapColorsFor(dark: boolean): { leader: string; approximateStroke: string } {
+    return dark
+        ? { leader: DARK_LEADER_COLOR, approximateStroke: DARK_APPROXIMATE_STROKE }
+        : { leader: LEADER_COLOR, approximateStroke: MARKER_COLOR };
+}
 
 export const PRECISION_NOTES: Record<string, string | null> = {
     address: null,

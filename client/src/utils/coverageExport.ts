@@ -5,14 +5,15 @@ import {
 import {
     APPROXIMATE_PRECISIONS,
     HULL_COLOR,
-    LEADER_COLOR,
     MARKER_COLOR,
     MARKER_FILL,
     NCS_COLOR,
     OSM_URL,
     PRECISION_NOTES,
+    baseMapFor,
     clusterByPixel,
     labelDirection,
+    mapColorsFor,
     ringOffset,
     type LocatedCheckin
 } from '../components/mapShared';
@@ -39,6 +40,7 @@ export interface CoveragePngOptions {
     showHull: boolean;
     showHeat: boolean;
     showPins: boolean;
+    dark: boolean;
 }
 
 const PNG_WIDTH = 1600;
@@ -120,15 +122,17 @@ function loadTile(zoom: number, x: number, y: number): Promise<HTMLImageElement 
         image.onerror = () => {
             resolve(null);
         };
-        image.src = OSM_URL.replace('{z}', String(zoom)).replace('{x}', String(x)).replace('{y}', String(y));
+        image.src = OSM_URL
+            .replace('{z}', String(zoom)).replace('{x}', String(x)).replace('{y}', String(y));
     });
 }
 
-async function drawTiles(ctx: CanvasRenderingContext2D, zoom: number, originX: number, originY: number): Promise<void> {
+async function drawTiles(ctx: CanvasRenderingContext2D, zoom: number, originX: number, originY: number, dark: boolean): Promise<void> {
     const tileZoom = Math.floor(zoom);
     const tileCount = 2 ** tileZoom;
     const tileSize = TILE_SIZE * 2 ** (zoom - tileZoom);
     const jobs: Promise<void>[] = [];
+    ctx.filter = baseMapFor(dark).filter;
     for (let tx = Math.floor(originX / tileSize); tx <= Math.floor((originX + PNG_WIDTH) / tileSize); tx++) {
         for (let ty = Math.floor(originY / tileSize); ty <= Math.floor((originY + PNG_HEIGHT) / tileSize); ty++) {
             if (ty < 0 || ty >= tileCount)
@@ -143,6 +147,7 @@ async function drawTiles(ctx: CanvasRenderingContext2D, zoom: number, originX: n
         }
     }
     await Promise.all(jobs);
+    ctx.filter = 'none';
 }
 
 function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
@@ -201,7 +206,7 @@ function drawLabel(ctx: CanvasRenderingContext2D, text: string, x: number, y: nu
     ctx.fillText(text, boxX + padX, boxY + boxH / 2 + 0.5);
 }
 
-function drawMarker(ctx: CanvasRenderingContext2D, station: CoverageStation, x: number, y: number, direction: string, isNcs: boolean): void {
+function drawMarker(ctx: CanvasRenderingContext2D, station: CoverageStation, x: number, y: number, direction: string, isNcs: boolean, dark: boolean): void {
     const approximate = APPROXIMATE_PRECISIONS.includes(station.checkin.location_precision ?? '');
     if (isNcs) {
         ctx.beginPath();
@@ -217,7 +222,7 @@ function drawMarker(ctx: CanvasRenderingContext2D, station: CoverageStation, x: 
     ctx.fill();
     ctx.globalAlpha = 1;
     ctx.setLineDash(approximate ? [3, 3] : []);
-    ctx.strokeStyle = isNcs ? NCS_COLOR : MARKER_COLOR;
+    ctx.strokeStyle = isNcs ? NCS_COLOR : approximate ? mapColorsFor(dark).approximateStroke : MARKER_COLOR;
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.setLineDash([]);
@@ -285,7 +290,7 @@ export async function exportCoveragePng(result: CoverageResult, net: CoverageExp
     if (!ctx)
         throw new Error('Canvas is not supported in this browser');
 
-    ctx.fillStyle = '#e5e7eb';
+    ctx.fillStyle = baseMapFor(options.dark).background;
     ctx.fillRect(0, 0, PNG_WIDTH, PNG_HEIGHT);
 
     const panel = layoutPanel(ctx, result, options);
@@ -307,7 +312,7 @@ export async function exportCoveragePng(result: CoverageResult, net: CoverageExp
             return { x: w.x - originX, y: w.y - originY };
         };
 
-        await drawTiles(ctx, zoom, originX, originY);
+        await drawTiles(ctx, zoom, originX, originY, options.dark);
 
         if (options.showHeat && result.heatPoints.length > 0) {
             const centerLat = (Math.min(...stations.map(s => s.lat)) + Math.max(...stations.map(s => s.lat))) / 2;
@@ -353,12 +358,13 @@ export async function exportCoveragePng(result: CoverageResult, net: CoverageExp
             station
         }));
         const ncsId = result.netControl?.checkin.id ?? null;
+        const leaderColor = mapColorsFor(options.dark).leader;
         const clusters = options.showPins ? clusterByPixel(located, item => toCanvas(item)) : [];
         for (const cluster of clusters) {
             const group = cluster.items;
             if (group.length === 1) {
                 const point = toCanvas(group[0]);
-                drawMarker(ctx, group[0].station, point.x, point.y, 'right', group[0].checkin.id === ncsId);
+                drawMarker(ctx, group[0].station, point.x, point.y, 'right', group[0].checkin.id === ncsId, options.dark);
                 continue;
             }
             const spreads = group.map((item, index) => {
@@ -369,18 +375,18 @@ export async function exportCoveragePng(result: CoverageResult, net: CoverageExp
                 ctx.beginPath();
                 ctx.moveTo(truePoint.x, truePoint.y);
                 ctx.lineTo(cluster.x + offset.x, cluster.y + offset.y);
-                ctx.strokeStyle = LEADER_COLOR;
+                ctx.strokeStyle = leaderColor;
                 ctx.globalAlpha = 0.8;
                 ctx.lineWidth = 1.5;
                 ctx.stroke();
                 ctx.globalAlpha = 1;
                 ctx.beginPath();
                 ctx.arc(truePoint.x, truePoint.y, 2.5, 0, Math.PI * 2);
-                ctx.fillStyle = LEADER_COLOR;
+                ctx.fillStyle = leaderColor;
                 ctx.fill();
             }
             for (const { item, offset } of spreads)
-                drawMarker(ctx, item.station, cluster.x + offset.x, cluster.y + offset.y, labelDirection(offset), item.checkin.id === ncsId);
+                drawMarker(ctx, item.station, cluster.x + offset.x, cluster.y + offset.y, labelDirection(offset), item.checkin.id === ncsId, options.dark);
         }
     }
 

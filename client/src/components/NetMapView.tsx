@@ -26,6 +26,7 @@ interface NetMapViewProps {
 const RADAR_STORAGE_KEY = 'netminder.map.radar';
 const PINS_STORAGE_KEY = 'netminder.map.pins';
 const COVERAGE_STORAGE_KEY = 'netminder.map.coverage';
+const DARK_STORAGE_KEY = 'netminder.map.dark';
 
 function readRadarPreference(): boolean {
     try {
@@ -38,6 +39,14 @@ function readRadarPreference(): boolean {
 function readPinsPreference(): boolean {
     try {
         return localStorage.getItem(PINS_STORAGE_KEY) !== '0';
+    } catch {
+        return true;
+    }
+}
+
+function readDarkPreference(): boolean {
+    try {
+        return localStorage.getItem(DARK_STORAGE_KEY) !== '0';
     } catch {
         return true;
     }
@@ -57,6 +66,7 @@ export function NetMapView({ checkins, net = null }: NetMapViewProps) {
     const [radarEnabled, setRadarEnabled] = useState<boolean>(readRadarPreference);
     const [pinsEnabled, setPinsEnabled] = useState<boolean>(readPinsPreference);
     const [coverageEnabled, setCoverageEnabled] = useState<boolean>(readCoveragePreference);
+    const [darkEnabled, setDarkEnabled] = useState<boolean>(readDarkPreference);
     const [netControlId, setNetControlId] = useState<number | null>(null);
     const [showHull, setShowHull] = useState(true);
     const [showHeat, setShowHeat] = useState(true);
@@ -87,6 +97,14 @@ export function NetMapView({ checkins, net = null }: NetMapViewProps) {
         }
     }, [coverageEnabled]);
 
+    useEffect(() => {
+        try {
+            localStorage.setItem(DARK_STORAGE_KEY, darkEnabled ? '1' : '0');
+        } catch {
+            // Preference is optional; ignore storage failures
+        }
+    }, [darkEnabled]);
+
     const result = useMemo(() => computeCoverage(checkins, netControlId), [checkins, netControlId]);
     const locatedStations = useMemo(
         () => [...result.stations].sort((a, b) => a.checkin.callsign.localeCompare(b.checkin.callsign)),
@@ -97,7 +115,7 @@ export function NetMapView({ checkins, net = null }: NetMapViewProps) {
         setExporting(true);
         setExportError(null);
         try {
-            await exportCoveragePng(result, net, { showHull, showHeat, showPins: pinsEnabled });
+            await exportCoveragePng(result, net, { showHull, showHeat, showPins: pinsEnabled, dark: darkEnabled });
         } catch (error) {
             console.error('Error exporting coverage PNG:', error);
             setExportError('PNG export failed');
@@ -230,6 +248,10 @@ export function NetMapView({ checkins, net = null }: NetMapViewProps) {
                     checkins={checkins}
                     radarEnabled={radarEnabled}
                     showPins={pinsEnabled}
+                    darkMap={darkEnabled}
+                    onToggleDark={() => {
+                        setDarkEnabled(value => !value);
+                    }}
                     coverage={coverageEnabled ? { result, net, showHull, showHeat } : undefined}
                 />
             </div>

@@ -8,7 +8,7 @@ NetMinder helps amateur radio net control operators manage nets, station check-i
 - Track station check-ins, callsigns, names, locations, and comments
 - Optionally track fixed, mobile, and portable check-ins; admins can turn this off under Settings (Enable mobility tracking), which hides mobility controls while keeping stored data
 - View station history (split into "Your nets" and "All visible nets") and export net records as CSV
-- Map a net's check-ins from QRZ coordinates (or grid square center), with an optional NEXRAD radar overlay and a pop-out window
+- Map a net's check-ins from QRZ coordinates (or grid square center), with an optional NEXRAD radar overlay and a pop-out window. The map is dark by default; the **Dark** button under **Fit all** switches between a darkened OpenStreetMap and the normal light map (remembered per browser)
 - Turn on Coverage mode on the net map to pick net control, see an estimated coverage area and heatmap, and export a PNG, KML, or GeoJSON
 - Look up callsigns through optional QRZ integration
 - Manage operator accounts and administrator access
@@ -49,7 +49,7 @@ Turn on **Coverage** on the net map (panel or pop-out) to estimate how far a net
 - **Heatmap:** density of address-level check-ins, drawn with a fixed 5 km radius at every zoom level.
 - **Farthest station:** the address-level station farthest from net control, by great-circle distance.
 - **Approximate positions** (ZIP, grid square, state, country) are still shown with dashed markers but are excluded from the hull, heatmap and distances. If net control itself is approximate, distances are flagged as estimates.
-- **Exports:** PNG (OpenStreetMap tiles, hull, heatmap, summary), KML and GeoJSON, named `net-YYYY-MM-DD-coverage.*`. Radar is never included.
+- **Exports:** PNG (OpenStreetMap tiles (darkened when Dark is on), hull, heatmap, summary), KML and GeoJSON, named `net-YYYY-MM-DD-coverage.*`. Radar is never included.
 
 ## Docker deployment
 
